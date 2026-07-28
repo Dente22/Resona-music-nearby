@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "outDir": "dist-electron",
+    "rootDir": ".",
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "declaration": false
+  },
+  "include": [
+    "electron/**/*.ts",
+    "src/lib/libraryScanner.ts",
+    "src/lib/trackAnalyzer.ts",
+    "src/lib/musicBrainzClient.ts",
+    "src/lib/freeMusicSearch.ts",
+    "src/lib/trackDiscovery.ts",
+    "src/lib/downloadSafety.ts",
+    "src/lib/playlistParser.ts",
+    "src/lib/playlistImport.ts",
+    "src/lib/filenameParser.ts",
+    "src/lib/moodAnalyzer.ts",
+    "src/lib/audioUrl.ts",
+    "src/lib/trackImport.ts",
+    "src/lib/streaming/**/*.ts",
+    "src/lib/types.ts"
+  ]
+}

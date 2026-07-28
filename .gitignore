@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+dist-electron/
+release/
+coverage/
+playwright-report/
+test-results/
+
+# Runtime user data (NOT in frontend, NOT committed, NOT migrated)
+userdata/
+*.log
+electron-run.log
+
+# Local env / secrets
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Uploads: keep folder, ignore large binaries by default (whitelist in uploads/README)
+uploads/**
+!uploads/README.md
+!uploads/.gitkeep

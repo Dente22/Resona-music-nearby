@@ -1,0 +1,31 @@
+{
+  "appId": "com.resona.player",
+  "productName": "Resona",
+  "copyright": "Copyright © 2026 Resona",
+  "directories": {
+    "output": "release",
+    "buildResources": "build"
+  },
+  "files": [
+    "dist/**/*",
+    "dist-electron/**/*",
+    "electron/preload.cjs",
+    "build/icon.png",
+    "build/icon.ico"
+  ],
+  "icon": "build/icon.png",
+  "win": {
+    "target": "nsis",
+    "signAndEditExecutable": false,
+    "icon": "build/icon.ico",
+    "executableName": "Resona"
+  },
+  "nsis": {
+    "shortcutName": "Resona",
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "installerIcon": "build/icon.ico",
+    "uninstallerIcon": "build/icon.ico",
+    "installerHeaderIcon": "build/icon.ico"
+  }
+}

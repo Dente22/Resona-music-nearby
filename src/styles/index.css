@@ -1,0 +1,259 @@
+@import './fonts.css';
+@import './tailwind.css';
+@import './theme.css';
+
+/* Harbor Light (default) — also on :root so Radix portals outside .vw-shell keep tokens */
+:root,
+.vw-shell {
+  --vw-bg: #F3F7F5;
+  --vw-bg-deep: #E7EFEC;
+  --vw-surface: rgba(255, 255, 255, 0.72);
+  --vw-surface-solid: #FFFFFF;
+  --vw-surface-strong: rgba(255, 255, 255, 0.92);
+  --vw-ink: #142B2F;
+  --vw-ink-soft: #3D5A5E;
+  --vw-muted: #6E878A;
+  --vw-faint: #9BB0B2;
+  --vw-border: rgba(20, 43, 47, 0.08);
+  --vw-border-strong: rgba(20, 43, 47, 0.14);
+  --vw-accent: #FF5C3A;
+  --vw-accent-soft: rgba(255, 92, 58, 0.14);
+  --vw-accent-strong: #E84A2A;
+  --vw-sea: #2A9D8F;
+  --vw-sea-soft: rgba(42, 157, 143, 0.14);
+  --vw-danger: #E04545;
+  --vw-online: #2F7FD1;
+  --vw-online-soft: rgba(47, 127, 209, 0.12);
+  --vw-on-accent: #FFFFFF;
+  --vw-shadow: rgba(20, 43, 47, 0.12);
+  --vw-overlay: rgba(20, 43, 47, 0.35);
+  --vw-track: rgba(20, 43, 47, 0.08);
+  --vw-nav-fade: rgba(243, 247, 245, 0.96);
+  --vw-shell-a: rgba(42, 157, 143, 0.22);
+  --vw-shell-b: rgba(255, 92, 58, 0.16);
+  --vw-shell-c: rgba(42, 157, 143, 0.12);
+  --vw-shell-grad: linear-gradient(165deg, #F7FBFA 0%, #EAF3F0 48%, #E3ECE8 100%);
+  --vw-wave-a: rgba(42, 157, 143, 0.25);
+  --vw-wave-b: rgba(255, 92, 58, 0.18);
+  --vw-stripe: rgba(20, 43, 47, 0.015);
+  --vw-glass-bg: rgba(255, 255, 255, 0.72);
+  --vw-glass-border: rgba(20, 43, 47, 0.08);
+  --vw-art-shadow: rgba(20, 43, 47, 0.18);
+  --vw-art-fade: rgba(20, 43, 47, 0.28);
+  --vw-accent-glow: rgba(255, 92, 58, 0.28);
+}
+
+.vw-shell {
+  background:
+    radial-gradient(ellipse 90% 55% at 12% -10%, var(--vw-shell-a), transparent 55%),
+    radial-gradient(ellipse 70% 45% at 100% 8%, var(--vw-shell-b), transparent 50%),
+    radial-gradient(ellipse 80% 50% at 50% 110%, var(--vw-shell-c), transparent 55%),
+    var(--vw-shell-grad);
+  font-family: var(--font-body);
+  color: var(--vw-ink);
+  transition: background 0.35s ease, color 0.25s ease;
+}
+
+/* Harbor Night */
+.vw-shell[data-theme="dark"] {
+  --vw-bg: #0C1416;
+  --vw-bg-deep: #152024;
+  --vw-surface: rgba(255, 255, 255, 0.06);
+  --vw-surface-solid: #152024;
+  --vw-surface-strong: rgba(255, 255, 255, 0.1);
+  --vw-ink: #E8F2F0;
+  --vw-ink-soft: #B7CBC8;
+  --vw-muted: #8AA0A3;
+  --vw-faint: #5F7578;
+  --vw-border: rgba(232, 242, 240, 0.08);
+  --vw-border-strong: rgba(232, 242, 240, 0.14);
+  --vw-accent: #FF6B4A;
+  --vw-accent-soft: rgba(255, 107, 74, 0.18);
+  --vw-accent-strong: #FF8568;
+  --vw-sea: #3DB8A8;
+  --vw-sea-soft: rgba(61, 184, 168, 0.16);
+  --vw-danger: #F07171;
+  --vw-online: #5BA8E8;
+  --vw-online-soft: rgba(91, 168, 232, 0.14);
+  --vw-on-accent: #FFFFFF;
+  --vw-shadow: rgba(0, 0, 0, 0.45);
+  --vw-overlay: rgba(0, 0, 0, 0.55);
+  --vw-track: rgba(232, 242, 240, 0.1);
+  --vw-nav-fade: rgba(12, 20, 22, 0.96);
+  --vw-shell-a: rgba(61, 184, 168, 0.16);
+  --vw-shell-b: rgba(255, 107, 74, 0.12);
+  --vw-shell-c: rgba(61, 184, 168, 0.1);
+  --vw-shell-grad: linear-gradient(165deg, #0E1719 0%, #0C1416 48%, #101C1F 100%);
+  --vw-wave-a: rgba(61, 184, 168, 0.22);
+  --vw-wave-b: rgba(255, 107, 74, 0.14);
+  --vw-stripe: rgba(232, 242, 240, 0.02);
+  --vw-glass-bg: rgba(21, 32, 36, 0.78);
+  --vw-glass-border: rgba(232, 242, 240, 0.1);
+  --vw-art-shadow: rgba(0, 0, 0, 0.5);
+  --vw-art-fade: rgba(0, 0, 0, 0.45);
+  --vw-accent-glow: rgba(255, 107, 74, 0.32);
+}
+
+.vw-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.45;
+  background-image:
+    repeating-linear-gradient(
+      -12deg,
+      transparent 0 18px,
+      var(--vw-stripe) 18px 19px
+    );
+  mask-image: linear-gradient(to bottom, rgba(0,0,0,0.55), transparent 70%);
+}
+
+.vw-wave {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 180px;
+  pointer-events: none;
+  opacity: 0.35;
+  background:
+    radial-gradient(ellipse 120% 80% at 20% 120%, var(--vw-wave-a), transparent 60%),
+    radial-gradient(ellipse 100% 70% at 80% 130%, var(--vw-wave-b), transparent 55%);
+  animation: vw-wave-drift 12s ease-in-out infinite alternate;
+}
+
+@keyframes vw-wave-drift {
+  from { transform: translateY(0) scaleX(1); }
+  to { transform: translateY(-10px) scaleX(1.04); }
+}
+
+@keyframes vw-art-breathe {
+  from { transform: translateY(0) scale(1); }
+  to { transform: translateY(-4px) scale(1.015); }
+}
+
+@keyframes vw-fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes vw-boot-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.04); opacity: 1; }
+}
+
+.vw-art-playing {
+  animation: vw-art-breathe 3.6s ease-in-out infinite alternate;
+}
+
+.vw-fade-up {
+  animation: vw-fade-up 0.45s ease-out both;
+}
+
+.vw-boot-mark {
+  animation: vw-boot-pulse 2.2s ease-in-out infinite;
+}
+
+/* —— Resona splash —— */
+.resona-splash-glow {
+  position: absolute;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, var(--vw-accent-soft) 0%, transparent 65%),
+    radial-gradient(circle at 70% 40%, var(--vw-sea-soft) 0%, transparent 60%);
+  filter: blur(8px);
+  animation: resona-glow-breathe 2.8s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+.resona-splash-mark {
+  animation: resona-mark-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+  box-shadow: 0 16px 40px var(--vw-shadow);
+}
+
+.resona-splash-title {
+  animation: resona-fade-up 0.65s ease-out 0.18s both;
+}
+
+.resona-splash-tag {
+  animation: resona-fade-up 0.65s ease-out 0.28s both;
+}
+
+.resona-splash-load {
+  animation: resona-fade-up 0.65s ease-out 0.45s both;
+}
+
+.resona-play {
+  transform-origin: 22px 32px;
+  animation: resona-play-pop 0.55s cubic-bezier(0.34, 1.4, 0.64, 1) 0.15s both;
+}
+
+.resona-arc {
+  stroke-dasharray: 80;
+  stroke-dashoffset: 80;
+  animation: resona-arc-draw 0.9s ease-out forwards;
+}
+
+.resona-arc-1 { animation-delay: 0.25s; }
+.resona-arc-2 { animation-delay: 0.38s; }
+.resona-arc-3 { animation-delay: 0.5s; }
+
+.resona-splash-bars span {
+  display: block;
+  width: 4px;
+  border-radius: 99px;
+  background: linear-gradient(180deg, var(--vw-accent), var(--vw-sea));
+  animation: resona-bar 0.9s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
+.resona-splash-bars span:nth-child(1) { height: 10px; animation-delay: 0s; }
+.resona-splash-bars span:nth-child(2) { height: 18px; animation-delay: 0.1s; }
+.resona-splash-bars span:nth-child(3) { height: 26px; animation-delay: 0.2s; }
+.resona-splash-bars span:nth-child(4) { height: 16px; animation-delay: 0.3s; }
+.resona-splash-bars span:nth-child(5) { height: 12px; animation-delay: 0.4s; }
+
+@keyframes resona-mark-in {
+  from { opacity: 0; transform: scale(0.72) translateY(12px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes resona-fade-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes resona-glow-breathe {
+  from { opacity: 0.55; transform: scale(0.92); }
+  to { opacity: 0.95; transform: scale(1.08); }
+}
+
+@keyframes resona-play-pop {
+  from { opacity: 0; transform: scale(0.6); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes resona-arc-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes resona-bar {
+  0%, 100% { transform: scaleY(0.45); opacity: 0.55; }
+  50% { transform: scaleY(1); opacity: 1; }
+}
+
+.vw-glass {
+  background: var(--vw-glass-bg);
+  border: 1px solid var(--vw-glass-border);
+  backdrop-filter: blur(14px);
+}
+
+.vw-display {
+  font-family: var(--font-display);
+}
+
+::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
