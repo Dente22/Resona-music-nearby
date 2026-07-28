@@ -36,10 +36,9 @@
         "arch": ["x64"]
       }
     ],
-    "signAndEditExecutable": true,
+    "signAndEditExecutable": false,
     "icon": "build/icon.ico",
-    "executableName": "Resona",
-    "publisherName": "Resona"
+    "executableName": "Resona"
   },
   "nsis": {
     "oneClick": false,
@@ -61,7 +60,6 @@
     "license": "LICENSE",
     "displayLanguageSelector": true,
     "installerLanguages": ["ru_RU", "en_US"],
-    "language": "ru_RU",
     "include": "build/installer.nsh"
   }
 }
