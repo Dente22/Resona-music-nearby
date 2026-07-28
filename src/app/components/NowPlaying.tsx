@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState, type CSSProperties } from "react"
 import {
   Heart, Shuffle, SkipBack, Play, Pause,
   SkipForward, Repeat, Repeat1, Volume1, Volume2, WifiOff, ListPlus, Loader2,
@@ -9,6 +9,7 @@ import { resolvePlayButtonVisual } from "@/lib/playButtonVisual"
 import { MoodBadge } from "./MoodBadge"
 import { useI18n } from "@/context/I18nContext"
 import { VW } from "@/lib/designTokens"
+import { clampVolumePercent } from "@/lib/streaming/volumePercent"
 
 interface NowPlayingProps {
   track: Track
@@ -45,8 +46,13 @@ export function NowPlaying({
 }: NowPlayingProps) {
   const { t } = useI18n()
   const [scrubProgress, setScrubProgress] = useState<number | null>(null)
+  const [localVolume, setLocalVolume] = useState(() => clampVolumePercent(volume))
   const shownProgress = scrubProgress ?? progress
   const playVisual = resolvePlayButtonVisual(isPlaying, isLoading)
+
+  useEffect(() => {
+    setLocalVolume(clampVolumePercent(volume))
+  }, [volume])
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden relative vw-fade-up">
@@ -253,30 +259,32 @@ export function NowPlaying({
         </button>
       </div>
 
-      <div className="flex items-center gap-3 px-7 pb-2">
+      <div className="flex items-center gap-3 px-7 pb-2 no-drag" style={{ WebkitAppRegion: "no-drag" } as CSSProperties}>
         <Volume1 className="w-4 h-4 flex-shrink-0" style={{ color: VW.faint }} />
-        <Slider.Root
-          className="relative flex items-center flex-1 h-4 cursor-pointer touch-none"
+        <input
+          type="range"
           min={0}
           max={100}
           step={1}
-          value={[volume]}
-          onValueChange={([v]) => onVolumeChange(v)}
-        >
-          <Slider.Track
-            className="relative flex-1 h-1 overflow-hidden"
-            style={{ background: VW.track, borderRadius: 999 }}
-          >
-            <Slider.Range
-              className="absolute h-full"
-              style={{ background: VW.sea, borderRadius: 999 }}
-            />
-          </Slider.Track>
-          <Slider.Thumb
-            className="block w-3 h-3 outline-none"
-            style={{ background: VW.ink, borderRadius: 999 }}
-          />
-        </Slider.Root>
+          value={localVolume}
+          onChange={e => {
+            const next = clampVolumePercent(Number(e.target.value))
+            setLocalVolume(next)
+            onVolumeChange(next)
+          }}
+          onInput={e => {
+            const next = clampVolumePercent(Number((e.target as HTMLInputElement).value))
+            setLocalVolume(next)
+            onVolumeChange(next)
+          }}
+          className="flex-1 h-4 cursor-pointer no-drag"
+          style={{
+            accentColor: "var(--vw-sea)",
+            WebkitAppRegion: "no-drag",
+          } as CSSProperties}
+          aria-label="Volume"
+          data-testid="now-playing-volume"
+        />
         <Volume2 className="w-4 h-4 flex-shrink-0" style={{ color: VW.faint }} />
       </div>
     </div>

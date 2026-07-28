@@ -1,4 +1,4 @@
-/** Violetwave design tokens — CSS variables swap with light/dark theme */
+/** Resona design tokens — CSS variables swap with light/dark theme */
 export type AppTheme = "light" | "dark"
 
 export const VW = {

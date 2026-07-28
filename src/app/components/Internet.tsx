@@ -20,11 +20,16 @@ import {
   type EmbedNowPlayingRaw,
 } from "@/lib/streaming/embedNowPlaying"
 import {
+  EMBED_LIKE_SCRIPT,
+  EMBED_UNLIKE_SCRIPT,
+  buildEmbedVolumeScript,
+} from "@/lib/streaming/embedPlayerControls"
+import { clampVolumePercent } from "@/lib/streaming/volumePercent"
+import {
   isAddableStreamingUrl,
   parseContextMenuConsoleMessage,
 } from "@/lib/streaming/embedContextMenu"
 import { EMBED_TRACK_URL_SCRIPT, resolveBrowserImportUrl } from "@/lib/streaming/embedTrackUrl"
-import { EMBED_LIKE_SCRIPT, EMBED_UNLIKE_SCRIPT } from "@/lib/streaming/embedPlayerControls"
 import type { StreamingProvider } from "@/lib/streaming/types"
 import type { Playlist } from "@/lib/types"
 import { AddToPlaylistDialog } from "./AddToPlaylistDialog"
@@ -40,6 +45,7 @@ export interface EmbedSessionInfo {
 interface InternetProps {
   visible: boolean
   panelVisible: boolean
+  volume: number
   controlProvider?: StreamingProvider | null
   playbackProvider?: StreamingProvider | null
   keepWebviewsAlive?: boolean
@@ -57,6 +63,7 @@ interface InternetProps {
     next: () => void
     like: () => void
     unlike: () => void
+    setVolume: (percent: number) => void
     getPageUrl: () => string
   }) => void
   onEmbedHostReady?: () => void
@@ -81,6 +88,7 @@ function importErrorMessage(error: string | undefined, t: ReturnType<typeof useI
 export function Internet({
   visible,
   panelVisible,
+  volume,
   controlProvider,
   playbackProvider,
   keepWebviewsAlive = false,
@@ -383,6 +391,36 @@ export function Internet({
     [execOnProvider, focusControlProvider, getControlProvider, pollNowPlaying],
   )
 
+  const applyEmbedVolume = useCallback(
+    async (percent: number) => {
+      const pct = clampVolumePercent(percent)
+      const script = buildEmbedVolumeScript(pct)
+      const targets = new Set<StreamingProvider>()
+      const control = getControlProvider()
+      if (control) targets.add(control)
+      if (playbackProvider) targets.add(playbackProvider)
+      if (activeProviderRef.current) targets.add(activeProviderRef.current)
+      if (targets.size === 0) {
+        targets.add("spotify")
+        targets.add("yandex")
+      }
+      await Promise.all(
+        [...targets].map(async provider => {
+          try {
+            await api.embedExecute(provider, script)
+          } catch {
+            // embed not ready
+          }
+        }),
+      )
+    },
+    [api, getControlProvider, playbackProvider],
+  )
+
+  useEffect(() => {
+    void applyEmbedVolume(volume)
+  }, [applyEmbedVolume, volume, webviewsActive, controlProvider, playbackProvider, activeProvider])
+
   useEffect(() => {
     onRegisterEmbedControls({
       play: () => void playEmbed(),
@@ -398,9 +436,10 @@ export function Internet({
         const provider = getControlProvider()
         void execOnProvider(provider, EMBED_UNLIKE_SCRIPT)
       },
+      setVolume: (percent: number) => void applyEmbedVolume(percent),
       getPageUrl: () => livePageUrlRef.current,
     })
-  }, [onRegisterEmbedControls, playEmbed, pauseEmbed, seekEmbed, prevEmbed, nextEmbed, execOnProvider, getControlProvider])
+  }, [onRegisterEmbedControls, playEmbed, pauseEmbed, seekEmbed, prevEmbed, nextEmbed, execOnProvider, getControlProvider, applyEmbedVolume])
 
   useEffect(() => {
     void refreshLogin()

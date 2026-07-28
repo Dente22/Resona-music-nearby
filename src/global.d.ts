@@ -116,6 +116,7 @@ export interface MusicPlayerApi {
     bounds?: { x: number; y: number; width: number; height: number }
   }) => Promise<boolean>
   embedExecute: (provider: "spotify" | "yandex", script: string) => Promise<unknown>
+  embedSetVolume: (percent: number) => Promise<boolean | { ok: boolean; muted: boolean; targets: number }>
   embedGetUrl: (provider: "spotify" | "yandex") => Promise<string>
   embedReload: (provider: "spotify" | "yandex") => Promise<boolean>
   embedLoadUrl: (provider: "spotify" | "yandex", url: string) => Promise<boolean>

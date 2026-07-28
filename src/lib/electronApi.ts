@@ -41,36 +41,36 @@ const browserApi = {
     return true
   },
   pickTracks: async () => {
-    console.warn("[Violetwave] Запустите через npm run electron:dev для импорта файлов")
+    console.warn("[Resona] Запустите через npm run electron:dev для импорта файлов")
     return []
   },
   deleteTrackFile: async () => true,
   hidePanel: async () => {
-    console.warn("[Violetwave] hidePanel недоступен в браузере — используйте npm run electron:dev")
+    console.warn("[Resona] hidePanel недоступен в браузере — используйте npm run electron:dev")
     return false
   },
   togglePanel: async () => {
-    console.warn("[Violetwave] togglePanel недоступен в браузере — используйте npm run electron:dev")
+    console.warn("[Resona] togglePanel недоступен в браузере — используйте npm run electron:dev")
     return false
   },
   scanMusicFolders: async () => {
-    console.warn("[Violetwave] scanMusicFolders недоступен в браузере")
+    console.warn("[Resona] scanMusicFolders недоступен в браузере")
     return []
   },
   discoverTrack: async () => {
-    console.warn("[Violetwave] discoverTrack недоступен в браузере")
+    console.warn("[Resona] discoverTrack недоступен в браузере")
     return { identified: { title: "", artist: "" }, freeDownloads: [] }
   },
   downloadFreeTrack: async () => {
-    console.warn("[Violetwave] downloadFreeTrack недоступен в браузере")
+    console.warn("[Resona] downloadFreeTrack недоступен в браузере")
     throw new Error("Electron only")
   },
   resolvePlaylist: async () => {
-    console.warn("[Violetwave] resolvePlaylist недоступен в браузере")
+    console.warn("[Resona] resolvePlaylist недоступен в браузере")
     return { parsed: { type: "unsupported", url: "" }, tracks: [] }
   },
   downloadPlaylist: async () => {
-    console.warn("[Violetwave] downloadPlaylist недоступен в браузере")
+    console.warn("[Resona] downloadPlaylist недоступен в браузере")
     return []
   },
   resolveAudioPath: async (filePath: string) => filePath,
@@ -101,6 +101,7 @@ const browserApi = {
   onPanelVisibility: (_cb: (visible: boolean) => void) => () => {},
   embedLayout: async () => true,
   embedExecute: async () => null,
+  embedSetVolume: async () => false,
   embedGetUrl: async () => "",
   embedReload: async () => true,
   embedLoadUrl: async () => false,

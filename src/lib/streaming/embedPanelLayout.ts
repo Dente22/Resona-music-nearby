@@ -15,7 +15,7 @@ export function getInternetContainerStyle(internetTabVisible: boolean): CSSPrope
       overflow: "hidden",
       position: "relative",
       zIndex: 1,
-      background: "#09090F",
+      background: "#0C1416",
     }
   }
   return { display: "none" }

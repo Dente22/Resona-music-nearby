@@ -60,7 +60,7 @@ export const ru: Translations = {
   },
   internet: {
     title: "Интернет",
-    subtitle: "Войдите ниже как на сайте — сессия сохранится в Violetwave.",
+    subtitle: "Войдите ниже как на сайте — сессия сохранится в Resona.",
     spotify: "Spotify",
     yandex: "Яндекс.Музыка",
     disconnect: "Выйти",

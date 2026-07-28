@@ -1,4 +1,4 @@
-import { app, BrowserWindow, globalShortcut, Tray, Menu, nativeImage, ipcMain, dialog, screen, Notification, protocol, net } from "electron"
+import { app, BrowserWindow, globalShortcut, Tray, Menu, nativeImage, ipcMain, dialog, screen, Notification, protocol, net, session } from "electron"
 import path from "path"
 import fs from "fs"
 import { fileURLToPath, pathToFileURL } from "url"
@@ -20,6 +20,10 @@ import {
   resolveMusicLibraryPath,
 } from "../src/lib/appDataPaths.js"
 import { BRAND_APP_ID, BRAND_NAME } from "../src/lib/brand.js"
+import {
+  createResonaFallbackIconSvg,
+  resolveAppIconPath,
+} from "./appIcon.js"
 import { getTranslations, isAppLocale, type AppLocale } from "../src/lib/i18n/index.js"
 import { clearEmbedSession, getAllEmbedStatuses, getEmbedSessionStatus } from "./streaming/embedSession.js"
 import {
@@ -185,13 +189,14 @@ function getPreloadPath() {
 }
 
 function getIconPath() {
-  const rel = path.join("build", "icon.png")
-  const candidates = [
-    path.join(app.getAppPath(), rel),
-    path.join(process.resourcesPath, rel),
-    path.join(process.cwd(), rel),
-  ]
-  return candidates.find(p => fs.existsSync(p)) ?? candidates[0]
+  return (
+    resolveAppIconPath({
+      platform: process.platform,
+      appPath: app.getAppPath(),
+      resourcesPath: process.resourcesPath,
+      cwd: process.cwd(),
+    }) ?? path.join(process.cwd(), "build", process.platform === "win32" ? "icon.ico" : "icon.png")
+  )
 }
 
 function loadAppIcon() {
@@ -199,11 +204,19 @@ function loadAppIcon() {
   if (fs.existsSync(iconPath)) {
     return nativeImage.createFromPath(iconPath)
   }
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
-    <rect width="256" height="256" rx="48" fill="#7C3AED"/>
-    <path d="M112 72v88a28 28 0 1 1-20-26.88V88h72v72a28 28 0 1 1-20-26.88V72h-12z" fill="#FFFFFF"/>
-  </svg>`
-  return nativeImage.createFromBuffer(Buffer.from(svg))
+  return nativeImage.createFromBuffer(Buffer.from(createResonaFallbackIconSvg()))
+}
+
+function loadTrayIcon() {
+  const iconPath = getIconPath()
+  const icon = fs.existsSync(iconPath)
+    ? nativeImage.createFromPath(iconPath)
+    : nativeImage.createFromBuffer(Buffer.from(createResonaFallbackIconSvg()))
+  // Multi-size .ico already contains 16/32px — resizing a full ICO blurs the tray glyph.
+  if (iconPath.toLowerCase().endsWith(".ico") && !icon.isEmpty()) {
+    return icon
+  }
+  return icon.resize({ width: 16, height: 16 })
 }
 
 function getDisplayById(id: number | null) {
@@ -245,7 +258,7 @@ function createWindow() {
     y: visible.y,
     frame: false,
     transparent: false,
-    backgroundColor: "#09090F",
+    backgroundColor: "#0C1416",
     resizable: false,
     skipTaskbar: true,
     alwaysOnTop: true,
@@ -379,8 +392,7 @@ function showStartupNotification(hotkey: string) {
 }
 
 function createTray() {
-  const icon = loadAppIcon()
-  tray = new Tray(icon.resize({ width: 16, height: 16 }))
+  tray = new Tray(loadTrayIcon())
   tray.setToolTip(`${APP_NAME} (${activeHotkey})`)
   rebuildTrayMenu()
   tray.on("click", () => togglePanel("tray"))
@@ -608,6 +620,12 @@ function setupIpc() {
     embedViews.execute(provider, script),
   )
 
+  ipcMain.handle("embed:set-volume", async (_e, percent: number) => {
+    const result = await embedViews.setVolume(percent)
+    log(`Volume ${percent}% → muted=${result.muted} targets=${result.targets}`)
+    return result
+  })
+
   ipcMain.handle("embed:get-url", (_e, provider: StreamingProvider) =>
     embedViews.getUrl(provider),
   )
@@ -721,6 +739,16 @@ function registerMediaProtocol() {
 
 app.whenReady().then(async () => {
   registerMediaProtocol()
+  // Dev loads Vite modules from localhost without content hashes — Chromium cache
+  // can keep the old VioletWave purple UI after source changes.
+  if (isDev) {
+    try {
+      await session.defaultSession.clearCache()
+      log("Cleared Chromium HTTP cache (dev)")
+    } catch (err) {
+      log(`Cache clear failed: ${err}`)
+    }
+  }
   log(`${APP_NAME} starting`)
   ensureDirs()
   createWindow()

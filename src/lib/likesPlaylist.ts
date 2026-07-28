@@ -6,7 +6,7 @@ import type { Playlist, PlaylistsState, Track } from "./types"
 export const LIKES_PLAYLIST_ID = "violetwave-likes"
 
 const LIKES_PLAYLIST_IMG =
-  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%231E1E32' width='400' height='400'/%3E%3Cpath d='M200 290 L95 185 a55 55 0 0 1 78-78 L200 134l27-27a55 55 0 0 1 78 78Z' fill='%23EF4444'/%3E%3C/svg%3E"
+  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%23152024' width='400' height='400'/%3E%3Cpath d='M200 290 L95 185 a55 55 0 0 1 78-78 L200 134l27-27a55 55 0 0 1 78 78Z' fill='%23FF5C3A'/%3E%3C/svg%3E"
 
 export function getLikesPlaylistName(language: AppLocale): string {
   return language === "en" ? "Liked" : "Нравится"

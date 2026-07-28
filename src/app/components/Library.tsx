@@ -82,13 +82,22 @@ export function Library({
     <div className="flex flex-col flex-1 overflow-hidden relative vw-fade-up">
       <div className="px-6 pt-14 pb-3">
         <div className="flex items-end justify-between mb-5">
-          <div>
-            <p className="vw-display mb-1" style={{ color: VW.sea, fontSize: 12, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase" }}>
-              {t.app.name}
-            </p>
-            <h1 className="vw-display" style={{ color: VW.ink, fontSize: 30, fontWeight: 800, letterSpacing: "-0.04em", lineHeight: 1 }}>
-              {t.library.title}
-            </h1>
+          <div className="flex items-center gap-3 min-w-0">
+            <img
+              src="/icon.png"
+              alt=""
+              className="w-11 h-11 flex-shrink-0 object-cover"
+              style={{ borderRadius: 14 }}
+              aria-hidden
+            />
+            <div className="min-w-0">
+              <p className="vw-display mb-1" style={{ color: VW.sea, fontSize: 12, fontWeight: 700, letterSpacing: "0.16em", textTransform: "uppercase" }}>
+                {t.app.name}
+              </p>
+              <h1 className="vw-display" style={{ color: VW.ink, fontSize: 30, fontWeight: 800, letterSpacing: "-0.04em", lineHeight: 1 }}>
+                {t.library.title}
+              </h1>
+            </div>
           </div>
           <div
             className="flex items-center gap-1.5 px-3 py-1.5"

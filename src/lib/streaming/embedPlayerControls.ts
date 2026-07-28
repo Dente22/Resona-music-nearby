@@ -1,7 +1,75 @@
 /** Shared runtime injected into Spotify/Yandex webview (dom-ready + before each control call). */
-export const EMBED_CONTROLS_VERSION = 10
+export const EMBED_CONTROLS_VERSION = 13
 
 export const EMBED_CONTROLS_BOOTSTRAP = `(function() {
+  if (!window.__VW_VOL_HOOK__) {
+    window.__VW_VOL_HOOK__ = true;
+    if (typeof window.__VW_EMBED_DESIRED_VOLUME__ !== "number") {
+      window.__VW_EMBED_DESIRED_VOLUME__ = 0.72;
+    }
+    window.__VW_MASTER_GAINS__ = window.__VW_MASTER_GAINS__ || [];
+    try {
+      var proto = window.HTMLMediaElement && window.HTMLMediaElement.prototype;
+      var desc = proto && Object.getOwnPropertyDescriptor(proto, "volume");
+      if (proto && desc && desc.get && desc.set) {
+        Object.defineProperty(proto, "volume", {
+          configurable: true,
+          enumerable: desc.enumerable,
+          get: function() {
+            return this.__vw_page_volume__ != null ? this.__vw_page_volume__ : desc.get.call(this);
+          },
+          set: function(v) {
+            var pageVol = Math.max(0, Math.min(1, Number(v)));
+            if (!isFinite(pageVol)) pageVol = 1;
+            this.__vw_page_volume__ = pageVol;
+            var gain = typeof window.__VW_EMBED_DESIRED_VOLUME__ === "number"
+              ? window.__VW_EMBED_DESIRED_VOLUME__
+              : 1;
+            desc.set.call(this, Math.max(0, Math.min(1, pageVol * gain)));
+            this.muted = (pageVol * gain) <= 0.001;
+          }
+        });
+        var origPlay = proto.play;
+        if (typeof origPlay === "function") {
+          proto.play = function() {
+            try {
+              var page = this.__vw_page_volume__;
+              if (page == null) page = 1;
+              this.volume = page;
+            } catch (e) {}
+            return origPlay.apply(this, arguments);
+          };
+        }
+      }
+    } catch (hookErr) {}
+    try {
+      var AC = window.AudioContext || window.webkitAudioContext;
+      if (AC && !AC.__vwPatched) {
+        var OrigAC = AC;
+        function PatchedAudioContext() {
+          var ctx = new (Function.prototype.bind.apply(OrigAC, [null].concat([].slice.call(arguments))))();
+          try {
+            var master = ctx.createGain();
+            master.gain.value = typeof window.__VW_EMBED_DESIRED_VOLUME__ === "number"
+              ? window.__VW_EMBED_DESIRED_VOLUME__
+              : 1;
+            window.__VW_MASTER_GAINS__.push(master);
+            var realDest = ctx.destination;
+            master.connect(realDest);
+            Object.defineProperty(ctx, "destination", {
+              configurable: true,
+              get: function() { return master; }
+            });
+          } catch (e2) {}
+          return ctx;
+        }
+        PatchedAudioContext.prototype = OrigAC.prototype;
+        PatchedAudioContext.__vwPatched = true;
+        try { window.AudioContext = PatchedAudioContext; } catch (e3) {}
+        try { window.webkitAudioContext = PatchedAudioContext; } catch (e4) {}
+      }
+    } catch (acErr) {}
+  }
   if (window.__VW_EMBED__ && window.__VW_EMBED__.v === ${EMBED_CONTROLS_VERSION}) return;
   function pickMedia() {
     var list = [];
@@ -460,6 +528,85 @@ export const EMBED_CONTROLS_BOOTSTRAP = `(function() {
     }
     return 0;
   }
+  function applyDesiredVolume() {
+    var level = typeof window.__VW_EMBED_DESIRED_VOLUME__ === "number"
+      ? window.__VW_EMBED_DESIRED_VOLUME__
+      : null;
+    if (level == null && window.__VW_EMBED__ && typeof window.__VW_EMBED__.__desiredVolume === "number") {
+      level = window.__VW_EMBED__.__desiredVolume;
+    }
+    if (level == null || !isFinite(level)) return false;
+    return setNativeVolume(level) || setVolumeUi(level);
+  }
+  function setNativeVolume(level) {
+    level = Math.max(0, Math.min(1, level));
+    window.__VW_EMBED_DESIRED_VOLUME__ = level;
+    var ok = false;
+    document.querySelectorAll("audio,video").forEach(function(m) {
+      try {
+        var page = m.__vw_page_volume__;
+        if (page == null || !isFinite(page)) page = 1;
+        m.__vw_page_volume__ = page;
+        m.volume = page;
+        ok = true;
+      } catch (e) {}
+    });
+    var gains = window.__VW_MASTER_GAINS__ || [];
+    for (var g = 0; g < gains.length; g++) {
+      try {
+        if (gains[g] && gains[g].gain) {
+          gains[g].gain.value = level;
+          ok = true;
+        }
+      } catch (e2) {}
+    }
+    return ok;
+  }
+  function setVolumeUi(level) {
+    level = Math.max(0, Math.min(1, level));
+    var selectors = [
+      '[data-testid="volume-bar"] input[type="range"]',
+      '[data-testid="volume-bar"] [role="slider"]',
+      'input[type="range"][aria-label*="Volume" i]',
+      'input[type="range"][aria-label*="volume" i]',
+      'input[type="range"][aria-label*="Громк" i]',
+      'input[type="range"][aria-label*="громк" i]',
+      '[class*="VolumeBar"] input[type="range"]',
+      '[class*="volume-bar"] input[type="range"]',
+      '[class*="Volume"] input[type="range"]',
+      '[class*="volume"] input[type="range"]',
+      'input[type="range"][class*="volume" i]',
+      'input[type="range"][class*="Volume"]',
+    ];
+    for (var i = 0; i < selectors.length; i++) {
+      var el = document.querySelector(selectors[i]);
+      if (!el) continue;
+      if (el.tagName === "INPUT" && el.type === "range") {
+        var max = parseFloat(el.max || el.getAttribute("max") || "100");
+        if (!isFinite(max) || max <= 0) max = 100;
+        if (setRangeValue(el, level * max)) return true;
+      }
+      if (el.getAttribute && el.getAttribute("role") === "slider") {
+        if (dispatchBarSeek(el, level)) return true;
+      }
+    }
+    var bars = document.querySelectorAll(
+      '[data-testid="volume-bar"], [class*="VolumeBar"], [class*="volume-bar"], [aria-label*="Volume" i], [aria-label*="Громк" i]'
+    );
+    for (var b = 0; b < bars.length; b++) {
+      if (dispatchBarSeek(bars[b], level)) return true;
+    }
+    return false;
+  }
+  function setVolume(pct) {
+    pct = Math.max(0, Math.min(100, Math.round(Number(pct) || 0)));
+    var level = pct / 100;
+    window.__VW_EMBED_DESIRED_VOLUME__ = level;
+    var ok = setNativeVolume(level);
+    if (setVolumeUi(level)) ok = true;
+    if (window.__VW_EMBED__) window.__VW_EMBED__.__desiredVolume = level;
+    return ok || true;
+  }
   window.__VW_EMBED__ = {
     v: ${EMBED_CONTROLS_VERSION},
     pickMedia: pickMedia,
@@ -467,7 +614,14 @@ export const EMBED_CONTROLS_BOOTSTRAP = `(function() {
     expandYandexPlayer: expandYandexPlayer,
     isPlaying: isPlaying,
     readProgress: readProgress,
-    play: play,
+    setVolume: setVolume,
+    applyDesiredVolume: applyDesiredVolume,
+    __desiredVolume: typeof window.__VW_EMBED_DESIRED_VOLUME__ === "number" ? window.__VW_EMBED_DESIRED_VOLUME__ : 0.72,
+    play: function() {
+      var ok = play();
+      try { applyDesiredVolume(); } catch (e) {}
+      return ok;
+    },
     prev: function() {
       if (isYandexHost()) {
         dismissYandexMobilePromo();
@@ -572,6 +726,17 @@ export function buildEmbedSeekScript(seconds: number): string {
     return window.__VW_EMBED__ ? window.__VW_EMBED__.seek(${target}) : false;
   })()`)
 }
+
+export function buildEmbedVolumeScript(percent: number): string {
+  const pct = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)))
+  return withEmbedBootstrap(`(function() {
+    return window.__VW_EMBED__ ? window.__VW_EMBED__.setVolume(${pct}) : false;
+  })()`)
+}
+
+export const EMBED_APPLY_VOLUME_SCRIPT = withEmbedBootstrap(`(function() {
+  return window.__VW_EMBED__ ? window.__VW_EMBED__.applyDesiredVolume() : false;
+})()`)
 
 export const EMBED_LIKE_SCRIPT = withEmbedBootstrap(`(function() {
   return window.__VW_EMBED__ ? window.__VW_EMBED__.like() : false;

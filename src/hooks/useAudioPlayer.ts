@@ -52,9 +52,13 @@ export function useAudioPlayer({
   onDurationRef.current = onDuration
   onPlayErrorRef.current = onPlayError
 
+  const volumeRef = useRef(volume)
+  volumeRef.current = volume
+
   useEffect(() => {
     audioRef.current = new Audio()
     const audio = audioRef.current
+    audio.volume = Math.max(0, Math.min(1, volumeRef.current / 100))
 
     const onTimeUpdate = () => onProgressRef.current(Math.floor(audio.currentTime))
     const onMeta = () => onDurationRef.current(Math.floor(audio.duration || 0))
@@ -75,7 +79,11 @@ export function useAudioPlayer({
   }, [])
 
   useEffect(() => {
-    if (audioRef.current) audioRef.current.volume = volume / 100
+    const audio = audioRef.current
+    if (!audio) return
+    const level = Math.max(0, Math.min(1, volume / 100))
+    audio.volume = level
+    audio.muted = level <= 0.001
   }, [volume])
 
   const loadTrack = useCallback(async (track: Track | null) => {
@@ -111,14 +119,16 @@ export function useAudioPlayer({
 
         audio.pause()
         audio.src = src
+        audio.volume = Math.max(0, Math.min(1, volumeRef.current / 100))
         audio.load()
         await waitForCanPlay(audio)
+        audio.volume = Math.max(0, Math.min(1, volumeRef.current / 100))
         loadedPathRef.current = playbackUri
         return true
       } catch (err) {
         loadedPathRef.current = ""
         const message = err instanceof Error ? err.message : "Playback load failed"
-        console.error("[Violetwave] Load error:", message)
+        console.error("[Resona] Load error:", message)
         onPlayErrorRef.current?.(message)
         return false
       }
@@ -136,6 +146,7 @@ export function useAudioPlayer({
 
     try {
       if (shouldPlay) {
+        audio.volume = Math.max(0, Math.min(1, volumeRef.current / 100))
         await audio.play()
         return true
       }
@@ -143,7 +154,7 @@ export function useAudioPlayer({
       return true
     } catch (err) {
       const message = err instanceof Error ? err.message : "Playback failed"
-      console.error("[Violetwave] Play error:", message)
+      console.error("[Resona] Play error:", message)
       onPlayErrorRef.current?.(message)
       audio.pause()
       return false

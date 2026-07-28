@@ -22,7 +22,7 @@ describe("embedPlayerControls", () => {
     expect(EMBED_CONTROLS_BOOTSTRAP).toContain("HTMLInputElement.prototype")
     expect(EMBED_CONTROLS_BOOTSTRAP).toContain("seekSpotify")
     expect(EMBED_CONTROLS_BOOTSTRAP).toContain("PointerEvent")
-    expect(EMBED_CONTROLS_VERSION).toBe(10)
+    expect(EMBED_CONTROLS_VERSION).toBe(13)
     expect(EMBED_CONTROLS_BOOTSTRAP).toContain("readProgress:")
     expect(EMBED_CONTROLS_BOOTSTRAP).toContain("like:")
     expect(EMBED_CONTROLS_BOOTSTRAP).toContain("play:")

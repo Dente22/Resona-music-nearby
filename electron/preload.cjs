@@ -29,6 +29,7 @@ const api = {
   refreshTrackCovers: (filePaths) => ipcRenderer.invoke("tracks:refresh-covers", filePaths),
   embedLayout: (request) => ipcRenderer.invoke("embed:layout", request),
   embedExecute: (provider, script) => ipcRenderer.invoke("embed:execute", provider, script),
+  embedSetVolume: (percent) => ipcRenderer.invoke("embed:set-volume", percent),
   embedGetUrl: (provider) => ipcRenderer.invoke("embed:get-url", provider),
   embedReload: (provider) => ipcRenderer.invoke("embed:reload", provider),
   embedLoadUrl: (provider, url) => ipcRenderer.invoke("embed:load-url", provider, url),

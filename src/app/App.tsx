@@ -168,6 +168,7 @@ function PlayerShell({ app }: { app: PlayerApp }) {
 
   const internetEmbedProps = {
     panelVisible: app.panelVisible,
+    volume: app.settings.volume,
     controlProvider: app.embedControlProvider,
     playbackProvider: app.embedPlaybackProvider,
     keepWebviewsAlive: app.keepEmbedWebviewsAlive,

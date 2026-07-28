@@ -54,11 +54,18 @@ npm test
 npm run test:coverage
 ```
 
+## Скачать установщик
+
+Готовые сборки: [Releases](https://github.com/Dente22/Resona-music-nearby/releases)  
+Файл: `Resona-Setup-x.y.z.exe` (мастер установки NSIS, русский/английский).
+
 ## Сборка
 
 ```bash
 npm run electron:build
 ```
+
+Артефакт: `release/Resona-Setup-<version>.exe`.
 
 ## Структура
 

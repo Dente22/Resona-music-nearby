@@ -1,10 +1,11 @@
-import { BrowserView, BrowserWindow, type WebContents } from "electron"
+import { BrowserView, BrowserWindow, webContents, type WebContents } from "electron"
 import { EMBED_PROVIDERS } from "../src/lib/streaming/embedConfig.js"
 import { EMBED_CONTROLS_BOOTSTRAP } from "../src/lib/streaming/embedPlayerControls.js"
 import { EMBED_CONTEXT_MENU_INJECT } from "../src/lib/streaming/embedContextMenu.js"
 import { EMBED_MOBILE_USER_AGENT } from "../src/lib/streaming/embedNowPlaying.js"
 import { extractConsoleMessage } from "../src/lib/streaming/embedConsoleMessage.js"
 import { isValidEmbedHostBounds } from "../src/lib/streaming/embedPanelLayout.js"
+import { shouldMuteEmbedAudio } from "../src/lib/streaming/volumePercent.js"
 
 export type StreamingProvider = "spotify" | "yandex"
 
@@ -26,6 +27,7 @@ class EmbedBrowserViewManager {
   private views = new Map<StreamingProvider, BrowserView>()
   private attached: StreamingProvider | null = null
   private onConsoleMessage: ((provider: StreamingProvider, message: string) => void) | null = null
+  private lastVolumePercent = 72
 
   setWindow(win: BrowserWindow | null) {
     this.window = win
@@ -57,6 +59,7 @@ class EmbedBrowserViewManager {
 
     view.webContents.on("did-finish-load", () => {
       void this.injectBootstrap(view.webContents)
+      void this.applyVolumeToView(view, this.lastVolumePercent)
     })
 
     view.webContents.on("console-message", (...args: unknown[]) => {
@@ -66,7 +69,90 @@ class EmbedBrowserViewManager {
 
     void view.webContents.loadURL(cfg.url)
     this.views.set(provider, view)
+    void this.applyVolumeToView(view, this.lastVolumePercent)
     return view
+  }
+
+  private async applyVolumeToView(view: BrowserView, percent: number) {
+    if (view.webContents.isDestroyed()) return
+    await this.applyVolumeToWebContents(view.webContents, percent)
+  }
+
+  private async applyVolumeToWebContents(wc: WebContents, percent: number) {
+    if (wc.isDestroyed()) return
+    const pct = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)))
+    const muted = shouldMuteEmbedAudio(pct)
+    const level = pct / 100
+    try {
+      wc.setAudioMuted(muted)
+      wc.audioMuted = muted
+    } catch {
+      // continue with page script
+    }
+    const script = `(function(){
+      try {
+        window.__VW_EMBED_DESIRED_VOLUME__ = ${level};
+        if (window.__VW_VOL_WATCHDOG__) {
+          clearInterval(window.__VW_VOL_WATCHDOG__);
+          window.__VW_VOL_WATCHDOG__ = null;
+        }
+        function forceLevel() {
+          document.querySelectorAll("audio,video").forEach(function(m){
+            try {
+              m.volume = ${level};
+              m.muted = ${muted};
+            } catch (e) {}
+          });
+          var gains = window.__VW_MASTER_GAINS__ || [];
+          for (var i = 0; i < gains.length; i++) {
+            try { if (gains[i] && gains[i].gain) gains[i].gain.value = ${level}; } catch (e2) {}
+          }
+        }
+        if (window.__VW_EMBED__ && window.__VW_EMBED__.setVolume) {
+          window.__VW_EMBED__.setVolume(${pct});
+        } else {
+          forceLevel();
+        }
+        if (${muted}) {
+          forceLevel();
+          window.__VW_VOL_WATCHDOG__ = setInterval(forceLevel, 200);
+        }
+        return true;
+      } catch (err) { return false; }
+    })()`
+    try {
+      await wc.executeJavaScript(EMBED_CONTROLS_BOOTSTRAP)
+      await wc.executeJavaScript(script, true)
+    } catch {
+      // page not ready — Chromium mute already applied
+    }
+  }
+
+  async setVolume(percent: number): Promise<{ ok: boolean; muted: boolean; targets: number }> {
+    const pct = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)))
+    this.lastVolumePercent = pct
+    const muted = shouldMuteEmbedAudio(pct)
+    let targets = 0
+
+    // Chromium mute on every WebContents — this is what actually silences Spotify/Yandex.
+    for (const wc of webContents.getAllWebContents()) {
+      if (wc.isDestroyed()) continue
+      try {
+        wc.setAudioMuted(muted)
+        wc.audioMuted = muted
+        targets += 1
+      } catch {
+        // ignore
+      }
+    }
+
+    // Page-level gain / watchdog only inside embed BrowserViews
+    for (const view of this.views.values()) {
+      if (view.webContents.isDestroyed()) continue
+      await this.applyVolumeToView(view, pct)
+    }
+
+    return { ok: targets > 0 || this.views.size > 0, muted, targets }
   }
 
   private async injectBootstrap(webContents: WebContents) {
@@ -105,7 +191,7 @@ class EmbedBrowserViewManager {
     this.window.setBrowserView(view)
     this.attached = request.provider
 
-    view.setBackgroundColor("#09090F")
+    view.setBackgroundColor("#0C1416")
     view.setBounds({
       x: Math.round(request.bounds.x),
       y: Math.round(request.bounds.y),

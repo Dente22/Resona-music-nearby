@@ -15,7 +15,7 @@ export function waitForOAuthCallback(expectedPath = "/callback"): Promise<{ code
         const code = url.searchParams.get("code") ?? undefined
         const error = url.searchParams.get("error") ?? undefined
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
-        res.end("<html><body style='font-family:sans-serif;background:#09090F;color:#F0F0FA;text-align:center;padding:40px'><h2>Violetwave</h2><p>Можно закрыть это окно и вернуться в приложение.</p></body></html>")
+        res.end("<html><body style='font-family:sans-serif;background:#0C1416;color:#E8F2F0;text-align:center;padding:40px'><h2>Resona</h2><p>Можно закрыть это окно и вернуться в приложение.</p></body></html>")
         server.close()
         resolve({ code, error })
       } catch (err) {

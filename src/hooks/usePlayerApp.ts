@@ -86,9 +86,8 @@ import { collectStreamingTrackInputs, collectStreamingTrackInputsFromEmbedOnly }
 import { mergePageUrlOnStreamingInput } from "@/lib/streaming/saveLikedTrack"
 import type { StreamingProvider, StreamingTrackInput } from "@/lib/streaming/types"
 import { EMBED_MOUNT_DELAY_MS } from "@/lib/streaming/embedPanelLifecycle"
-
-const PLACEHOLDER_IMG =
-  "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Crect fill='%231E1E32' width='400' height='400'/%3E%3Ctext x='50%25' y='50%25' fill='%238B5CF6' font-size='48' text-anchor='middle' dy='.3em'%3E♪%3C/text%3E%3C/svg%3E"
+import { PLACEHOLDER_COVER } from "@/lib/designTokens"
+import { clampVolumePercent } from "@/lib/streaming/volumePercent"
 
 export function usePlayerApp() {
   const api = getMusicPlayerApi()
@@ -98,6 +97,8 @@ export function usePlayerApp() {
   const [playlistsState, setPlaylistsState] = useState(createEmptyPlaylists())
   const [playback, setPlayback] = useState(createInitialPlayback())
   const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS)
+  const settingsRef = useRef(settings)
+  settingsRef.current = settings
   const [loaded, setLoaded] = useState(false)
   const [embedNowPlaying, setEmbedNowPlaying] = useState<EmbedNowPlaying | null>(null)
   const [embedControlProvider, setEmbedControlProvider] = useState<StreamingProvider | null>(null)
@@ -112,6 +113,7 @@ export function usePlayerApp() {
   const embedSeekRef = useRef<((seconds: number) => void) | null>(null)
   const embedLikeRef = useRef<(() => void) | null>(null)
   const embedUnlikeRef = useRef<(() => void) | null>(null)
+  const embedVolumeRef = useRef<((percent: number) => void) | null>(null)
   const embedGetPageUrlRef = useRef<(() => string) | null>(null)
   const pendingEmbedPlayRef = useRef<Track | null>(null)
   const embedDriveTrackIdRef = useRef<string | null>(null)
@@ -136,7 +138,7 @@ export function usePlayerApp() {
     playback,
     currentTrack,
     embedNowPlaying,
-    PLACEHOLDER_IMG,
+    PLACEHOLDER_COVER,
     screen === "internet",
     embedBrowsingActive,
     embedControlProvider,
@@ -241,6 +243,11 @@ export function usePlayerApp() {
   }, [api])
 
   useEffect(() => {
+    if (!loaded) return
+    void api.embedSetVolume?.(clampVolumePercent(settings.volume))
+  }, [api, loaded, settings.volume])
+
+  useEffect(() => {
     if (!loaded || coversRefreshedRef.current) return
     const missing = library.tracks.filter(
       t => t.source === "local" && !t.img?.trim() && t.filePath,
@@ -293,15 +300,39 @@ export function usePlayerApp() {
   }, [playlistsState, loaded, api])
 
   const saveSettings = useCallback(async (patch: Partial<AppSettings>) => {
-    const next = updateSettings(settings, patch)
+    const next = updateSettings(settingsRef.current, patch)
+    settingsRef.current = next
     setSettings(next)
     if (patch.language) {
       setPlaylistsState(prev =>
         ensureLikesPlaylist(prev, getLikesPlaylistName(next.language)),
       )
     }
+    if (typeof patch.volume === "number") {
+      const pct = clampVolumePercent(patch.volume)
+      void api.embedSetVolume?.(pct)
+      embedVolumeRef.current?.(pct)
+    }
     await api.saveSettings(next)
-  }, [settings, api])
+  }, [api])
+
+  const setVolume = useCallback(
+    (v: number) => {
+      const next = clampVolumePercent(v)
+      void (async () => {
+        try {
+          if (typeof api.embedSetVolume === "function") {
+            await api.embedSetVolume(next)
+          }
+        } catch {
+          // embed layer unavailable
+        }
+        embedVolumeRef.current?.(next)
+        await saveSettings({ volume: next })
+      })()
+    },
+    [api, saveSettings],
+  )
 
   const handleAddTracks = useCallback(async () => {
     const imported = await api.pickTracks()
@@ -311,7 +342,7 @@ export function usePlayerApp() {
     for (const meta of imported) {
       const track = createTrackFromFile(meta.filePath, {
         ...meta,
-        img: meta.img || PLACEHOLDER_IMG,
+        img: meta.img || PLACEHOLDER_COVER,
         mood: meta.mood,
         originalPath: meta.originalPath,
       })
@@ -332,7 +363,7 @@ export function usePlayerApp() {
     for (const meta of imported) {
       const track = createTrackFromFile(meta.filePath, {
         ...meta,
-        img: meta.img || PLACEHOLDER_IMG,
+        img: meta.img || PLACEHOLDER_COVER,
         mood: meta.mood,
         originalPath: meta.originalPath,
       })
@@ -776,6 +807,7 @@ export function usePlayerApp() {
     next: () => void
     like: () => void
     unlike: () => void
+    setVolume: (percent: number) => void
     getPageUrl: () => string
   }) => {
     embedPlayRef.current = controls.play
@@ -785,6 +817,7 @@ export function usePlayerApp() {
     embedNextRef.current = controls.next
     embedLikeRef.current = controls.like
     embedUnlikeRef.current = controls.unlike
+    embedVolumeRef.current = controls.setVolume
     embedGetPageUrlRef.current = controls.getPageUrl
   }, [])
 
@@ -1120,7 +1153,7 @@ export function usePlayerApp() {
     pausePlayback,
     toggleShuffle: () => setPlayback(toggleShuffle(playback)),
     cycleRepeat: () => setPlayback(cycleRepeatMode(playback)),
-    setVolume: (v: number) => saveSettings({ volume: v }),
+    setVolume,
     handleAddTracks,
     handleScanFolders,
     handleAddStreamingTracks,

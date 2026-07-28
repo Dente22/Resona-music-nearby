@@ -3,6 +3,7 @@ import { Download, Globe, Search, Music2, Loader2, ListMusic } from "lucide-reac
 import type { Track } from "@/lib/types"
 import type { DiscoveryResult, PlaylistTrackItem } from "@/global"
 import { useI18n } from "@/context/I18nContext"
+import { VW } from "@/lib/designTokens"
 
 interface DiscoverProps {
   tracks: Track[]
@@ -21,10 +22,10 @@ interface DiscoverProps {
   onImportPlaylist: (tracks: PlaylistTrackItem[]) => Promise<number>
 }
 
-const ACCENT = "#8B5CF6"
-const TEXT = "#F0F0FA"
-const SUBTEXT = "#7878A0"
-const BORDER = "rgba(255,255,255,0.06)"
+const ACCENT = VW.accent
+const TEXT = VW.ink
+const SUBTEXT = VW.muted
+const BORDER = VW.border
 
 export function Discover({
   tracks,
@@ -125,11 +126,13 @@ export function Discover({
   const identified = result?.identified
 
   return (
-    <div className="flex flex-col flex-1 overflow-hidden" style={{ background: "#09090F" }}>
+    <div className="flex flex-col flex-1 overflow-hidden relative vw-fade-up">
       <div className="px-6 pt-14 pb-3">
         <div className="flex items-center gap-3 mb-2">
           <img src="/icon.png" alt="" className="w-9 h-9 rounded-xl" aria-hidden />
-          <h1 style={{ color: TEXT, fontSize: "26px", fontWeight: 700 }}>{t.discover.title}</h1>
+          <h1 className="vw-display" style={{ color: TEXT, fontSize: "26px", fontWeight: 800, letterSpacing: "-0.04em" }}>
+            {t.discover.title}
+          </h1>
         </div>
         <p style={{ color: SUBTEXT, fontSize: "12px", lineHeight: 1.5 }}>
           {t.discover.subtitle}
@@ -138,8 +141,8 @@ export function Discover({
 
       <div className="flex-1 overflow-y-auto px-6 pb-4 space-y-4">
         <section
-          className="rounded-2xl p-4 space-y-3"
-          style={{ background: "rgba(139,92,246,0.06)", border: `1px solid rgba(139,92,246,0.2)` }}
+          className="rounded-2xl p-4 space-y-3 vw-glass"
+          style={{ background: VW.accentSoft, border: `1px solid ${VW.borderStrong}` }}
         >
           <div className="flex items-center gap-2">
             <ListMusic className="w-4 h-4" style={{ color: ACCENT }} />
@@ -161,7 +164,7 @@ export function Discover({
               onClick={handleLoadPlaylist}
               disabled={playlistLoading || !playlistUrl.trim()}
               className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl disabled:opacity-40"
-              style={{ background: "rgba(255,255,255,0.08)", color: TEXT, fontSize: "13px", fontWeight: 600 }}
+              style={{ background: VW.surface, color: TEXT, fontSize: "13px", fontWeight: 600 }}
               data-testid="playlist-load"
             >
               {playlistLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
@@ -171,7 +174,7 @@ export function Discover({
               onClick={handleImportPlaylist}
               disabled={importingPlaylist || !playlistTracks.length}
               className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl disabled:opacity-40"
-              style={{ background: ACCENT, color: "#FFF", fontSize: "13px", fontWeight: 600 }}
+              style={{ background: ACCENT, color: VW.white, fontSize: "13px", fontWeight: 600 }}
               data-testid="playlist-import"
             >
               {importingPlaylist ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
@@ -179,7 +182,7 @@ export function Discover({
             </button>
           </div>
           {playlistMessage && (
-            <p style={{ color: "#34D399", fontSize: "12px" }} data-testid="playlist-message">
+            <p style={{ color: VW.sea, fontSize: "12px" }} data-testid="playlist-message">
               {playlistMessage}
             </p>
           )}
@@ -207,7 +210,7 @@ export function Discover({
 
         <section
           className="rounded-2xl p-4 space-y-3"
-          style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${BORDER}` }}
+          style={{ background: VW.surface, border: `1px solid ${BORDER}` }}
         >
           <span style={{ color: TEXT, fontSize: "14px", fontWeight: 600 }}>{t.discover.fromLibrary}</span>
           <select
@@ -235,7 +238,7 @@ export function Discover({
 
         <section
           className="rounded-2xl p-4 space-y-3"
-          style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${BORDER}` }}
+          style={{ background: VW.surface, border: `1px solid ${BORDER}` }}
         >
           <span style={{ color: TEXT, fontSize: "14px", fontWeight: 600 }}>{t.discover.manual}</span>
           <input
@@ -260,7 +263,7 @@ export function Discover({
           onClick={handleSearch}
           disabled={loading || (!selectedTrackId && !artist && !title)}
           className="w-full flex items-center justify-center gap-2 py-3 rounded-xl transition-all active:scale-[0.98] disabled:opacity-40"
-          style={{ background: ACCENT, color: "#FFF", fontWeight: 600, fontSize: "14px" }}
+          style={{ background: ACCENT, color: VW.white, fontWeight: 600, fontSize: "14px" }}
           data-testid="discover-search"
         >
           {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
@@ -268,7 +271,7 @@ export function Discover({
         </button>
 
         {error && (
-          <p style={{ color: "#F87171", fontSize: "12px" }} data-testid="discover-error">
+          <p style={{ color: VW.danger, fontSize: "12px" }} data-testid="discover-error">
             {error}
           </p>
         )}
@@ -276,7 +279,7 @@ export function Discover({
         {identified && (identified.title || identified.artist) && (
           <section
             className="rounded-2xl p-4"
-            style={{ background: "rgba(139,92,246,0.08)", border: `1px solid rgba(139,92,246,0.2)` }}
+            style={{ background: VW.seaSoft, border: `1px solid ${VW.borderStrong}` }}
             data-testid="discover-identified"
           >
             <div className="flex items-center gap-2 mb-2">
@@ -298,7 +301,7 @@ export function Discover({
           <div
             key={item.id}
             className="flex items-center gap-3 p-3 rounded-xl"
-            style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${BORDER}` }}
+            style={{ background: VW.surface, border: `1px solid ${BORDER}` }}
             data-testid="discover-result"
           >
             {item.imageUrl ? (
@@ -306,7 +309,7 @@ export function Discover({
             ) : (
               <div
                 className="w-12 h-12 rounded-lg flex items-center justify-center"
-                style={{ background: "rgba(139,92,246,0.15)" }}
+                style={{ background: VW.accentSoft }}
               >
                 <Music2 className="w-5 h-5" style={{ color: ACCENT }} />
               </div>
@@ -319,7 +322,7 @@ export function Discover({
                 {item.artist}
               </p>
               {item.licenseUrl && (
-                <p className="truncate" style={{ color: "#34D399", fontSize: "10px" }}>
+                <p className="truncate" style={{ color: VW.sea, fontSize: "10px" }}>
                   {t.discover.creativeCommons}
                 </p>
               )}
@@ -328,7 +331,7 @@ export function Discover({
               onClick={() => handleDownload(item)}
               disabled={downloadingId === item.id}
               className="p-2 rounded-lg"
-              style={{ background: "rgba(139,92,246,0.2)" }}
+              style={{ background: VW.accentSoft }}
               title={t.discover.downloadTitle}
               data-testid="discover-download"
             >

@@ -196,7 +196,8 @@ export function Settings({ settings, onChange, onClose }: SettingsProps) {
             max={100}
             value={settings.volume}
             onChange={e => onChange({ volume: Number(e.target.value) })}
-            className="w-full accent-violet-500"
+            className="w-full"
+            style={{ accentColor: ACCENT }}
             data-testid="settings-volume"
           />
         </section>

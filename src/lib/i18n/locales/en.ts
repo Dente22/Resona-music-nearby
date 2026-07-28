@@ -60,7 +60,7 @@ export const en: Translations = {
   },
   internet: {
     title: "Internet",
-    subtitle: "Sign in below like in a browser — your session stays in Violetwave.",
+    subtitle: "Sign in below like in a browser — your session stays in Resona.",
     spotify: "Spotify",
     yandex: "Yandex Music",
     disconnect: "Sign out",
