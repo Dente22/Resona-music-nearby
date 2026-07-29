@@ -13,6 +13,7 @@ import { getLikesPlaylist } from "@/lib/likesPlaylist"
 import { formatTracksCount } from "@/lib/i18n"
 import { AddToPlaylistDialog } from "./AddToPlaylistDialog"
 import { VW } from "@/lib/designTokens"
+import { BRAND_ICON_SRC } from "@/lib/brandIconUrl"
 
 type Filter = "all" | "downloaded" | "recent" | "likes"
 
@@ -84,7 +85,7 @@ export function Library({
         <div className="flex items-end justify-between mb-5">
           <div className="flex items-center gap-3 min-w-0">
             <img
-              src="/icon.png"
+              src={BRAND_ICON_SRC}
               alt=""
               className="w-11 h-11 flex-shrink-0 object-cover"
               style={{ borderRadius: 14 }}

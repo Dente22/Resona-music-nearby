@@ -65,7 +65,6 @@ describe("electron-builder icon packaging", () => {
       }
     }
 
-    expect(config.win?.signAndEditExecutable).not.toBe(false)
     expect(config.win?.icon).toMatch(/icon\.ico$/)
     expect(config.win?.executableName).toBe("Resona")
     expect(config.nsis?.installerIcon).toMatch(/icon\.ico$/)
@@ -74,5 +73,11 @@ describe("electron-builder icon packaging", () => {
     expect(config.nsis?.shortcutName).toBe("Resona")
     expect(config.extraResources?.some(r => r.from.includes("icon.ico"))).toBe(true)
     expect(config.asarUnpack?.some(p => p.includes("icon."))).toBe(true)
+    // winCodeSign needs symlink rights on Windows; icon is stamped via afterPack + rcedit
+    expect(config.win?.signAndEditExecutable).toBe(false)
+    expect(
+      (config as { afterPack?: string }).afterPack ||
+        fs.readFileSync(path.join(root, "electron-builder.json"), "utf8"),
+    ).toMatch(/afterPack/)
   })
 })

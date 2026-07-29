@@ -3,7 +3,7 @@
   "description": "Resona — offline music player with slide-in panel",
   "author": "Resona",
   "private": true,
-  "version": "1.1.0",
+  "version": "1.1.1",
   "type": "module",
   "main": "dist-electron/electron/main.js",
   "scripts": {

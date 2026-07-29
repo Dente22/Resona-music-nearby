@@ -29,6 +29,7 @@
   ],
   "icon": "build/icon.ico",
   "artifactName": "Resona-Setup-${version}.${ext}",
+  "afterPack": "./scripts/afterPack.mjs",
   "win": {
     "target": [
       {

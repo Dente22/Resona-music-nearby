@@ -4,6 +4,7 @@ import type { Track } from "@/lib/types"
 import type { DiscoveryResult, PlaylistTrackItem } from "@/global"
 import { useI18n } from "@/context/I18nContext"
 import { VW } from "@/lib/designTokens"
+import { BRAND_ICON_SRC } from "@/lib/brandIconUrl"
 
 interface DiscoverProps {
   tracks: Track[]
@@ -129,7 +130,7 @@ export function Discover({
     <div className="flex flex-col flex-1 overflow-hidden relative vw-fade-up">
       <div className="px-6 pt-14 pb-3">
         <div className="flex items-center gap-3 mb-2">
-          <img src="/icon.png" alt="" className="w-9 h-9 rounded-xl" aria-hidden />
+          <img src={BRAND_ICON_SRC} alt="" className="w-9 h-9 rounded-xl" aria-hidden />
           <h1 className="vw-display" style={{ color: TEXT, fontSize: "26px", fontWeight: 800, letterSpacing: "-0.04em" }}>
             {t.discover.title}
           </h1>
