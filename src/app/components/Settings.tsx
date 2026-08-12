@@ -200,6 +200,9 @@ export function Settings({ settings, onChange, onClose }: SettingsProps) {
             style={{ accentColor: ACCENT }}
             data-testid="settings-volume"
           />
+          <p className="mt-2" style={{ color: SUBTEXT, fontSize: "12px" }}>
+            {t.settings.volumeHint}
+          </p>
         </section>
 
         <section

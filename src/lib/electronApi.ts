@@ -102,6 +102,12 @@ const browserApi = {
   embedLayout: async () => true,
   embedExecute: async () => null,
   embedSetVolume: async () => false,
+  setSystemVolume: async (percent: number) => ({
+    ok: false,
+    percent,
+    supported: false,
+  }),
+  systemVolumeSupported: async () => ({ supported: false }),
   embedGetUrl: async () => "",
   embedReload: async () => true,
   embedLoadUrl: async () => false,

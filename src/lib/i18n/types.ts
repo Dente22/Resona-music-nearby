@@ -96,6 +96,7 @@ export interface Translations {
     panelLeft: string
     panelRight: string
     defaultVolume: (pct: number) => string
+    volumeHint: string
     autoScan: string
     autoScanHint: string
     libraryFolder: string

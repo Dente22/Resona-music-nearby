@@ -1,9 +1,12 @@
 import { useEffect, useRef, useCallback } from "react"
 import type { Track } from "@/lib/types"
 import { getPlaybackUri } from "@/lib/streaming/trackFactory"
+import { localMediaVolumeWhenUsingSystemMixer } from "@/lib/streaming/windowsMixerVolume"
 
 interface UseAudioPlayerOptions {
   volume: number
+  /** When true, HTMLAudioElement stays at 100% — Windows Volume Mixer owns gain. */
+  useSystemVolumeMixer?: boolean
   onProgress: (seconds: number) => void
   onEnded: () => void
   onDuration: (seconds: number) => void
@@ -32,8 +35,14 @@ function waitForCanPlay(audio: HTMLAudioElement): Promise<void> {
   })
 }
 
+function resolveElementVolume(percent: number, useSystemMixer: boolean): number {
+  if (useSystemMixer) return localMediaVolumeWhenUsingSystemMixer()
+  return Math.max(0, Math.min(1, percent / 100))
+}
+
 export function useAudioPlayer({
   volume,
+  useSystemVolumeMixer = false,
   onProgress,
   onEnded,
   onDuration,
@@ -54,11 +63,13 @@ export function useAudioPlayer({
 
   const volumeRef = useRef(volume)
   volumeRef.current = volume
+  const mixerRef = useRef(useSystemVolumeMixer)
+  mixerRef.current = useSystemVolumeMixer
 
   useEffect(() => {
     audioRef.current = new Audio()
     const audio = audioRef.current
-    audio.volume = Math.max(0, Math.min(1, volumeRef.current / 100))
+    audio.volume = resolveElementVolume(volumeRef.current, mixerRef.current)
 
     const onTimeUpdate = () => onProgressRef.current(Math.floor(audio.currentTime))
     const onMeta = () => onDurationRef.current(Math.floor(audio.duration || 0))
@@ -81,10 +92,10 @@ export function useAudioPlayer({
   useEffect(() => {
     const audio = audioRef.current
     if (!audio) return
-    const level = Math.max(0, Math.min(1, volume / 100))
+    const level = resolveElementVolume(volume, useSystemVolumeMixer)
     audio.volume = level
-    audio.muted = level <= 0.001
-  }, [volume])
+    audio.muted = useSystemVolumeMixer ? false : level <= 0.001
+  }, [volume, useSystemVolumeMixer])
 
   const loadTrack = useCallback(async (track: Track | null) => {
     const run = async (): Promise<boolean> => {
@@ -119,10 +130,10 @@ export function useAudioPlayer({
 
         audio.pause()
         audio.src = src
-        audio.volume = Math.max(0, Math.min(1, volumeRef.current / 100))
+        audio.volume = resolveElementVolume(volumeRef.current, mixerRef.current)
         audio.load()
         await waitForCanPlay(audio)
-        audio.volume = Math.max(0, Math.min(1, volumeRef.current / 100))
+        audio.volume = resolveElementVolume(volumeRef.current, mixerRef.current)
         loadedPathRef.current = playbackUri
         return true
       } catch (err) {
@@ -146,7 +157,7 @@ export function useAudioPlayer({
 
     try {
       if (shouldPlay) {
-        audio.volume = Math.max(0, Math.min(1, volumeRef.current / 100))
+        audio.volume = resolveElementVolume(volumeRef.current, mixerRef.current)
         await audio.play()
         return true
       }

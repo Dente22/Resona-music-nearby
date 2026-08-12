@@ -25,6 +25,10 @@
     {
       "from": "build/icon.png",
       "to": "icons/icon.png"
+    },
+    {
+      "from": "electron/bin/win-app-volume.exe",
+      "to": "bin/win-app-volume.exe"
     }
   ],
   "icon": "build/icon.ico",

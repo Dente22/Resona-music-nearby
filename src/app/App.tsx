@@ -55,8 +55,18 @@ function PlayerShell({ app }: { app: PlayerApp }) {
   const onDuration = useCallback(() => {}, [])
   const onPlayError = useCallback(() => pauseOnErrorRef.current(), [])
 
+  const [useSystemVolumeMixer, setUseSystemVolumeMixer] = useState(false)
+
+  useEffect(() => {
+    void getMusicPlayerApi()
+      .systemVolumeSupported?.()
+      .then(r => setUseSystemVolumeMixer(Boolean(r?.supported)))
+      .catch(() => setUseSystemVolumeMixer(false))
+  }, [])
+
   const audio = useAudioPlayer({
     volume: app.settings.volume,
+    useSystemVolumeMixer,
     onProgress,
     onEnded,
     onDuration,

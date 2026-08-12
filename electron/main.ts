@@ -37,6 +37,13 @@ import {
   type StreamingProvider,
 } from "./embedBrowserView.js"
 import {
+  setWindowsAppVolume,
+  startWindowsAppVolumeWatchdog,
+  stopWindowsAppVolumeWatchdog,
+  isWindowsAppVolumeSupported,
+  resolveWinAppVolumeExe,
+} from "./windowsAppVolume.js"
+import {
   parseStoredEmbedPlayback,
   serializeEmbedPlayback,
 } from "../src/lib/streaming/embedPlaybackStore.js"
@@ -621,10 +628,19 @@ function setupIpc() {
   )
 
   ipcMain.handle("embed:set-volume", async (_e, percent: number) => {
+    const system = await setWindowsAppVolume(percent)
     const result = await embedViews.setVolume(percent)
-    log(`Volume ${percent}% → muted=${result.muted} targets=${result.targets}`)
-    return result
+    log(
+      `Volume ${percent}% → mixer=${system.ok ? "ok" : system.error ?? "n/a"} muted=${result.muted} targets=${result.targets}`,
+    )
+    return { ...result, system }
   })
+
+  ipcMain.handle("volume:set-system", async (_e, percent: number) => setWindowsAppVolume(percent))
+
+  ipcMain.handle("volume:system-supported", () => ({
+    supported: isWindowsAppVolumeSupported() && Boolean(resolveWinAppVolumeExe()),
+  }))
 
   ipcMain.handle("embed:get-url", (_e, provider: StreamingProvider) =>
     embedViews.getUrl(provider),
@@ -758,7 +774,12 @@ app.whenReady().then(async () => {
   const settings = readJson(SETTINGS_FILE(), {
     hotkey: HOTKEY_CANDIDATES[0],
     startMinimized: false,
+    volume: 72,
   })
+
+  const initialVolume = typeof settings.volume === "number" ? settings.volume : 72
+  void setWindowsAppVolume(initialVolume)
+  startWindowsAppVolumeWatchdog()
 
   const hotkeyOk = registerHotkey(settings.hotkey)
   if (!hotkeyOk) {
@@ -784,6 +805,7 @@ app.on("before-quit", () => {
 })
 
 app.on("will-quit", () => {
+  stopWindowsAppVolumeWatchdog()
   globalShortcut.unregisterAll()
 })
 

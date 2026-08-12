@@ -244,7 +244,9 @@ export function usePlayerApp() {
 
   useEffect(() => {
     if (!loaded) return
-    void api.embedSetVolume?.(clampVolumePercent(settings.volume))
+    const pct = clampVolumePercent(settings.volume)
+    void api.setSystemVolume?.(pct)
+    void api.embedSetVolume?.(pct)
   }, [api, loaded, settings.volume])
 
   useEffect(() => {
@@ -310,6 +312,7 @@ export function usePlayerApp() {
     }
     if (typeof patch.volume === "number") {
       const pct = clampVolumePercent(patch.volume)
+      void api.setSystemVolume?.(pct)
       void api.embedSetVolume?.(pct)
       embedVolumeRef.current?.(pct)
     }
@@ -320,6 +323,13 @@ export function usePlayerApp() {
     (v: number) => {
       const next = clampVolumePercent(v)
       void (async () => {
+        try {
+          if (typeof api.setSystemVolume === "function") {
+            await api.setSystemVolume(next)
+          }
+        } catch {
+          // Windows mixer helper unavailable
+        }
         try {
           if (typeof api.embedSetVolume === "function") {
             await api.embedSetVolume(next)
