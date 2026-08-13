@@ -185,7 +185,33 @@ describe("pickDisplayPlayback", () => {
     expect(d.progress).toBe(55)
   })
 
-  it("shows paused local track instead of stale embed without browser control", () => {
+  it("shows live browser track over paused local selection", () => {
+    const pb = selectTrack(createInitialPlayback(), "local-1", false)
+    const d = pickDisplayPlayback(
+      pb,
+      local,
+      {
+        provider: "yandex",
+        title: "I Cant Handle Change",
+        artist: "wapoixy",
+        album: "",
+        img: "https://x.jpg",
+        isPlaying: true,
+        duration: 100,
+        progress: 10,
+      },
+      placeholder,
+      false,
+      false,
+    )
+    expect(d.isEmbed).toBe(true)
+    expect(d.track?.title).toBe("I Cant Handle Change")
+    expect(d.track?.artist).toBe("wapoixy")
+    expect(d.isPlaying).toBe(true)
+    expect(d.useEmbedTransport).toBe(true)
+  })
+
+  it("keeps paused local when embed is paused and browsing is inactive", () => {
     const pb = selectTrack(createInitialPlayback(), "local-1", false)
     const d = pickDisplayPlayback(
       pb,
@@ -196,7 +222,7 @@ describe("pickDisplayPlayback", () => {
         artist: "Web",
         album: "",
         img: "https://x.jpg",
-        isPlaying: true,
+        isPlaying: false,
         duration: 100,
         progress: 10,
       },
@@ -247,6 +273,48 @@ describe("pickDisplayPlayback", () => {
     expect(d.useEmbedTransport).toBe(true)
     expect(d.track?.title).toBe("My Wave")
     expect(d.progress).toBe(40)
+  })
+
+  it("shows playing on library Yandex card even if embed DOM still says paused", () => {
+    const delegated: Track = {
+      id: "y1",
+      title: "Queued Song",
+      artist: "Artist A",
+      album: "",
+      duration: 200,
+      downloaded: false,
+      img: "https://cover.jpg",
+      filePath: "",
+      pageUrl: "https://music.yandex.kz/album/1/track/56220214",
+      externalId: "56220214",
+      source: "yandex",
+      addedAt: 1,
+    }
+    const pb = selectTrack(createInitialPlayback(), "y1", true)
+    const d = pickDisplayPlayback(
+      pb,
+      delegated,
+      {
+        provider: "yandex",
+        title: "Queued Song",
+        artist: "Artist A",
+        album: "",
+        img: "https://cover.jpg",
+        isPlaying: false,
+        duration: 200,
+        progress: 0,
+        pageUrl: delegated.pageUrl,
+      },
+      placeholder,
+      false,
+      false,
+      "yandex",
+      true,
+    )
+    expect(d.isEmbed).toBe(true)
+    expect(d.isPlaying).toBe(true)
+    expect(d.useEmbedTransport).toBe(true)
+    expect(d.track?.title).toBe("Queued Song")
   })
 
   it("keeps queued library track visible while switching playlist embed items", () => {

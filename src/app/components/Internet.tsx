@@ -46,6 +46,8 @@ interface InternetProps {
   visible: boolean
   panelVisible: boolean
   volume: number
+  /** When true, Windows mixer owns gain — do not inject page volume scripts. */
+  useSystemVolumeMixer?: boolean
   controlProvider?: StreamingProvider | null
   playbackProvider?: StreamingProvider | null
   keepWebviewsAlive?: boolean
@@ -89,6 +91,7 @@ export function Internet({
   visible,
   panelVisible,
   volume,
+  useSystemVolumeMixer = false,
   controlProvider,
   playbackProvider,
   keepWebviewsAlive = false,
@@ -275,9 +278,14 @@ export function Internet({
   )
 
   const pollNowPlaying = useCallback(async () => {
-    const providers: StreamingProvider[] = controlProviderRef.current
-      ? [controlProviderRef.current]
-      : ["spotify", "yandex"]
+    // Always include the visible provider; controlProvider alone can miss Yandex while Spotify is "control".
+    const providers = new Set<StreamingProvider>()
+    if (controlProviderRef.current) providers.add(controlProviderRef.current)
+    if (activeProviderRef.current) providers.add(activeProviderRef.current)
+    if (providers.size === 0) {
+      providers.add("spotify")
+      providers.add("yandex")
+    }
 
     let best: EmbedNowPlaying | null = null
     for (const provider of providers) {
@@ -393,6 +401,8 @@ export function Internet({
 
   const applyEmbedVolume = useCallback(
     async (percent: number) => {
+      // Windows mixer owns gain — page setVolumeUi breaks now-playing metadata.
+      if (useSystemVolumeMixer) return
       const pct = clampVolumePercent(percent)
       const script = buildEmbedVolumeScript(pct)
       const targets = new Set<StreamingProvider>()
@@ -414,12 +424,13 @@ export function Internet({
         }),
       )
     },
-    [api, getControlProvider, playbackProvider],
+    [api, getControlProvider, playbackProvider, useSystemVolumeMixer],
   )
 
   useEffect(() => {
+    if (useSystemVolumeMixer) return
     void applyEmbedVolume(volume)
-  }, [applyEmbedVolume, volume, webviewsActive, controlProvider, playbackProvider, activeProvider])
+  }, [applyEmbedVolume, volume, webviewsActive, controlProvider, playbackProvider, activeProvider, useSystemVolumeMixer])
 
   useEffect(() => {
     onRegisterEmbedControls({

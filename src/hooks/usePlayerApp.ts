@@ -129,6 +129,8 @@ export function usePlayerApp() {
     tracks.find(t => t.id === playback.currentTrackId) ?? tracks[0] ?? null
   const currentTrackRef = useRef(currentTrack)
   currentTrackRef.current = currentTrack
+  const playbackIsPlayingRef = useRef(playback.isPlaying)
+  playbackIsPlayingRef.current = playback.isPlaying
   const pinnedDelegatedPlayback = isPinnedDelegatedLibraryPlayback(
     currentTrack,
     playback.currentTrackId,
@@ -147,6 +149,15 @@ export function usePlayerApp() {
 
   useEffect(() => {
     if (embedDriveTrackIdRef.current) return
+    if (screen === "internet") {
+      setEmbedBrowsingActive(true)
+      return
+    }
+    // User started a local library file — keep ownership even if Yandex poll still says playing.
+    if (playback.isPlaying && currentTrack && !isEmbedDelegatedTrack(currentTrack)) {
+      setEmbedBrowsingActive(false)
+      return
+    }
     if (embedNowPlaying?.isPlaying) {
       setEmbedBrowsingActive(true)
       return
@@ -154,7 +165,7 @@ export function usePlayerApp() {
     if (!embedNowPlaying?.title?.trim()) {
       setEmbedBrowsingActive(false)
     }
-  }, [embedNowPlaying?.isPlaying, embedNowPlaying?.title])
+  }, [screen, playback.isPlaying, currentTrack, embedNowPlaying?.isPlaying, embedNowPlaying?.title])
 
   const embedMatchesQueue = Boolean(
     currentTrack
@@ -245,8 +256,23 @@ export function usePlayerApp() {
   useEffect(() => {
     if (!loaded) return
     const pct = clampVolumePercent(settings.volume)
-    void api.setSystemVolume?.(pct)
-    void api.embedSetVolume?.(pct)
+    // Debounce slider ticks so we don't spawn win-app-volume.exe on every pixel.
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const support = await api.systemVolumeSupported?.()
+          if (support?.supported && typeof api.setSystemVolume === "function") {
+            await api.setSystemVolume(pct)
+            return
+          }
+        } catch {
+          // fall through to embed path
+        }
+        void api.embedSetVolume?.(pct)
+        embedVolumeRef.current?.(pct)
+      })()
+    }, 120)
+    return () => window.clearTimeout(timer)
   }, [api, loaded, settings.volume])
 
   useEffect(() => {
@@ -310,38 +336,17 @@ export function usePlayerApp() {
         ensureLikesPlaylist(prev, getLikesPlaylistName(next.language)),
       )
     }
-    if (typeof patch.volume === "number") {
-      const pct = clampVolumePercent(patch.volume)
-      void api.setSystemVolume?.(pct)
-      void api.embedSetVolume?.(pct)
-      embedVolumeRef.current?.(pct)
-    }
     await api.saveSettings(next)
   }, [api])
 
   const setVolume = useCallback(
     (v: number) => {
-      const next = clampVolumePercent(v)
-      void (async () => {
-        try {
-          if (typeof api.setSystemVolume === "function") {
-            await api.setSystemVolume(next)
-          }
-        } catch {
-          // Windows mixer helper unavailable
-        }
-        try {
-          if (typeof api.embedSetVolume === "function") {
-            await api.embedSetVolume(next)
-          }
-        } catch {
-          // embed layer unavailable
-        }
-        embedVolumeRef.current?.(next)
-        await saveSettings({ volume: next })
-      })()
+      // Persist only — settings.volume effect applies mixer/embed once.
+      // Applying on every slider tick spawned win-app-volume.exe in a storm
+      // and broke the Windows mixer now-playing panel.
+      void saveSettings({ volume: clampVolumePercent(v) })
     },
-    [api, saveSettings],
+    [saveSettings],
   )
 
   const handleAddTracks = useCallback(async () => {
@@ -566,9 +571,20 @@ export function usePlayerApp() {
             ),
           })
       if (!filtered) return prev
-      const merged = options?.direct
+      let merged = options?.direct
         ? filtered
         : mergeEmbedPlayback(prev, filtered)
+      // While we are driving a library Yandex/Spotify track, Yandex DOM often still
+      // reports paused right after play(). Don't let that flip the card back to ▶.
+      if (
+        merged
+        && !merged.isPlaying
+        && embedDriveTrackIdRef.current
+        && libraryTrack?.id === embedDriveTrackIdRef.current
+        && (playbackIsPlayingRef.current || Boolean(prev?.isPlaying))
+      ) {
+        merged = { ...merged, isPlaying: true }
+      }
       if (merged?.title?.trim()) {
         void api.saveEmbedPlayback(merged)
       }
@@ -657,8 +673,27 @@ export function usePlayerApp() {
       if (startedUrl) {
         persistDelegatedTrackPageUrl(track.id, startedUrl)
         updateEmbedNowPlaying(current =>
-          current ? { ...current, pageUrl: startedUrl!, progress: 0, isPlaying: true } : current,
+          current
+            ? { ...current, pageUrl: startedUrl!, progress: 0, isPlaying: true }
+            : {
+                provider,
+                title: track.title,
+                artist: track.artist,
+                album: track.album,
+                img: track.img,
+                isPlaying: true,
+                duration: track.duration,
+                progress: 0,
+                pageUrl: startedUrl!,
+              },
         )
+        // Ensure the Now Playing card shows pause immediately (don't wait for Yandex DOM).
+        setPlayback(prev =>
+          prev.currentTrackId === track.id ? { ...prev, isPlaying: true } : prev,
+        )
+        // New Yandex WASAPI session — re-apply mixer level once.
+        const pct = clampVolumePercent(settingsRef.current.volume)
+        void api.setSystemVolume?.(pct)
         await new Promise(resolve => setTimeout(resolve, 150))
         if (generation !== embedPlayGenerationRef.current) return false
         const rawProgress = await api.embedExecute(provider, EMBED_READ_PROGRESS_SCRIPT)
@@ -668,6 +703,12 @@ export function usePlayerApp() {
             : Math.max(0, Math.floor(Number(rawProgress) || 0))
         if (shouldRestartDelegatedTrackFromStart(embedProgress)) {
           await restartEmbedFromStart(provider)
+          updateEmbedNowPlaying(current =>
+            current ? { ...current, progress: 0, isPlaying: true } : current,
+          )
+          setPlayback(prev =>
+            prev.currentTrackId === track.id ? { ...prev, isPlaying: true } : prev,
+          )
         }
         embedProgressResetPendingRef.current = false
       }

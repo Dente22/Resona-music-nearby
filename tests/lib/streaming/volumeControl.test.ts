@@ -4,6 +4,7 @@ import {
   EMBED_CONTROLS_BOOTSTRAP,
   EMBED_CONTROLS_VERSION,
   buildEmbedVolumeScript,
+  buildEmbedGainOnlyVolumeScript,
 } from "@/lib/streaming/embedPlayerControls"
 
 describe("volumePercent", () => {
@@ -22,10 +23,16 @@ describe("volumePercent", () => {
 
 describe("embed volume control", () => {
   it("installs media + AudioContext gain hooks", () => {
-    expect(EMBED_CONTROLS_VERSION).toBeGreaterThanOrEqual(13)
+    expect(EMBED_CONTROLS_VERSION).toBeGreaterThanOrEqual(14)
     expect(EMBED_CONTROLS_BOOTSTRAP).toContain("__VW_VOL_HOOK__")
     expect(EMBED_CONTROLS_BOOTSTRAP).toContain("AudioContext")
     expect(EMBED_CONTROLS_BOOTSTRAP).toContain("__VW_MASTER_GAINS__")
     expect(buildEmbedVolumeScript(0)).toContain("setVolume(0)")
+  })
+
+  it("exposes gain-only volume without setVolumeUi", () => {
+    expect(EMBED_CONTROLS_BOOTSTRAP).toContain("setVolumeGainOnly")
+    expect(buildEmbedGainOnlyVolumeScript(40)).toContain("setVolumeGainOnly(40)")
+    expect(buildEmbedGainOnlyVolumeScript(40)).not.toContain("setVolume(40)")
   })
 })

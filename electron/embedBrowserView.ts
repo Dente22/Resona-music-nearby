@@ -1,6 +1,9 @@
-import { BrowserView, BrowserWindow, webContents, type WebContents } from "electron"
+import { BrowserView, BrowserWindow, type WebContents } from "electron"
 import { EMBED_PROVIDERS } from "../src/lib/streaming/embedConfig.js"
-import { EMBED_CONTROLS_BOOTSTRAP } from "../src/lib/streaming/embedPlayerControls.js"
+import {
+  EMBED_CONTROLS_BOOTSTRAP,
+  buildEmbedGainOnlyVolumeScript,
+} from "../src/lib/streaming/embedPlayerControls.js"
 import { EMBED_CONTEXT_MENU_INJECT } from "../src/lib/streaming/embedContextMenu.js"
 import { EMBED_MOBILE_USER_AGENT } from "../src/lib/streaming/embedNowPlaying.js"
 import { extractConsoleMessage } from "../src/lib/streaming/embedConsoleMessage.js"
@@ -28,6 +31,8 @@ class EmbedBrowserViewManager {
   private attached: StreamingProvider | null = null
   private onConsoleMessage: ((provider: StreamingProvider, message: string) => void) | null = null
   private lastVolumePercent = 72
+  /** When true, Windows mixer owns gain — new views only get Chromium mute. */
+  private mixerOwnsGain = false
 
   setWindow(win: BrowserWindow | null) {
     this.window = win
@@ -69,7 +74,11 @@ class EmbedBrowserViewManager {
 
     void view.webContents.loadURL(cfg.url)
     this.views.set(provider, view)
-    void this.applyVolumeToView(view, this.lastVolumePercent)
+    if (this.mixerOwnsGain) {
+      this.syncMuteOnly(this.lastVolumePercent)
+    } else {
+      void this.applyVolumeToView(view, this.lastVolumePercent)
+    }
     return view
   }
 
@@ -128,25 +137,100 @@ class EmbedBrowserViewManager {
     }
   }
 
-  async setVolume(percent: number): Promise<{ ok: boolean; muted: boolean; targets: number }> {
+  /**
+   * When Windows mixer owns gain, only sync Chromium mute on embed views.
+   * Do NOT inject page setVolume / setVolumeUi — that breaks Spotify/Yandex now-playing DOM.
+   */
+  syncMuteOnly(percent: number): { ok: boolean; muted: boolean; targets: number } {
     const pct = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)))
     this.lastVolumePercent = pct
+    this.mixerOwnsGain = true
     const muted = shouldMuteEmbedAudio(pct)
     let targets = 0
 
-    // Chromium mute on every WebContents — this is what actually silences Spotify/Yandex.
-    for (const wc of webContents.getAllWebContents()) {
-      if (wc.isDestroyed()) continue
+    for (const view of this.views.values()) {
+      if (view.webContents.isDestroyed()) continue
       try {
-        wc.setAudioMuted(muted)
-        wc.audioMuted = muted
+        view.webContents.setAudioMuted(muted)
+        view.webContents.audioMuted = muted
         targets += 1
       } catch {
         // ignore
       }
     }
 
-    // Page-level gain / watchdog only inside embed BrowserViews
+    // Do not inject page scripts here — slider ticks / watchdog were re-entering
+    // Yandex DOM and made volume + now-playing feel broken. Mixer owns gain.
+    return { ok: targets > 0 || this.views.size > 0, muted, targets }
+  }
+
+  /**
+   * Temporary gain while WASAPI has no session yet (right after play).
+   * Uses media/AudioContext only — never setVolumeUi — so now-playing stays intact.
+   */
+  async syncGainOnly(percent: number): Promise<{ ok: boolean; muted: boolean; targets: number }> {
+    const pct = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)))
+    this.lastVolumePercent = pct
+    // Still prefer mixer when sessions appear; this is a soft interim path.
+    this.mixerOwnsGain = true
+    const muted = shouldMuteEmbedAudio(pct)
+    let targets = 0
+    const script = buildEmbedGainOnlyVolumeScript(pct)
+
+    for (const view of this.views.values()) {
+      if (view.webContents.isDestroyed()) continue
+      try {
+        view.webContents.setAudioMuted(muted)
+        view.webContents.audioMuted = muted
+        targets += 1
+      } catch {
+        // ignore
+      }
+      try {
+        await view.webContents.executeJavaScript(EMBED_CONTROLS_BOOTSTRAP)
+        await view.webContents.executeJavaScript(script, true)
+      } catch {
+        // page not ready
+      }
+    }
+
+    return { ok: targets > 0 || this.views.size > 0, muted, targets }
+  }
+
+  /** Clear interim page gain so mixer-only attenuation does not stack. */
+  async resetPageGainToFull(): Promise<void> {
+    const script = buildEmbedGainOnlyVolumeScript(100)
+    for (const view of this.views.values()) {
+      if (view.webContents.isDestroyed()) continue
+      try {
+        await view.webContents.executeJavaScript(EMBED_CONTROLS_BOOTSTRAP)
+        await view.webContents.executeJavaScript(script, true)
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  async setVolume(percent: number): Promise<{ ok: boolean; muted: boolean; targets: number }> {
+    const pct = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)))
+    this.lastVolumePercent = pct
+    this.mixerOwnsGain = false
+    const muted = shouldMuteEmbedAudio(pct)
+    let targets = 0
+
+    // Mute only embed BrowserViews — never the main UI webContents.
+    for (const view of this.views.values()) {
+      if (view.webContents.isDestroyed()) continue
+      try {
+        view.webContents.setAudioMuted(muted)
+        view.webContents.audioMuted = muted
+        targets += 1
+      } catch {
+        // ignore
+      }
+    }
+
+    // Page-level gain / watchdog only inside embed BrowserViews (fallback without OS mixer).
     for (const view of this.views.values()) {
       if (view.webContents.isDestroyed()) continue
       await this.applyVolumeToView(view, pct)

@@ -42,6 +42,7 @@ import {
   stopWindowsAppVolumeWatchdog,
   isWindowsAppVolumeSupported,
   resolveWinAppVolumeExe,
+  getDesiredWindowsAppVolume,
 } from "./windowsAppVolume.js"
 import {
   parseStoredEmbedPlayback,
@@ -628,15 +629,38 @@ function setupIpc() {
   )
 
   ipcMain.handle("embed:set-volume", async (_e, percent: number) => {
-    const system = await setWindowsAppVolume(percent)
+    const mixerReady =
+      isWindowsAppVolumeSupported() && Boolean(resolveWinAppVolumeExe())
+
+    if (mixerReady) {
+      // Mixer owns gain via volume:set-system. Here only sync mute — do not
+      // re-enter WASAPI (duplicate writes were thrashing mixer now-playing UI).
+      const result = embedViews.syncMuteOnly(percent)
+      log(`Volume ${percent}% → muteOnly targets=${result.targets}`)
+      return { ...result, mode: "mixer" as const }
+    }
+
     const result = await embedViews.setVolume(percent)
-    log(
-      `Volume ${percent}% → mixer=${system.ok ? "ok" : system.error ?? "n/a"} muted=${result.muted} targets=${result.targets}`,
-    )
-    return { ...result, system }
+    log(`Volume ${percent}% → muted=${result.muted} targets=${result.targets}`)
+    return { ...result, mode: "page" as const }
   })
 
-  ipcMain.handle("volume:set-system", async (_e, percent: number) => setWindowsAppVolume(percent))
+  ipcMain.handle("volume:set-system", async (_e, percent: number) => {
+    const result = await setWindowsAppVolume(percent, { force: true })
+    if (!result.supported) return result
+
+    const touched = result.touched ?? 0
+    if (touched > 0) {
+      // Mixer owns gain — mute sync only, clear any interim page gain.
+      embedViews.syncMuteOnly(percent)
+      void embedViews.resetPageGainToFull()
+    } else {
+      // No WASAPI session yet (common until audio actually starts) — gain-only
+      // fallback without setVolumeUi so the card/now-playing stays intact.
+      await embedViews.syncGainOnly(percent)
+    }
+    return result
+  })
 
   ipcMain.handle("volume:system-supported", () => ({
     supported: isWindowsAppVolumeSupported() && Boolean(resolveWinAppVolumeExe()),
@@ -778,8 +802,27 @@ app.whenReady().then(async () => {
   })
 
   const initialVolume = typeof settings.volume === "number" ? settings.volume : 72
-  void setWindowsAppVolume(initialVolume)
-  startWindowsAppVolumeWatchdog()
+  void setWindowsAppVolume(initialVolume, { force: true }).then(result => {
+    if (!result.supported) return
+    if ((result.touched ?? 0) > 0) {
+      embedViews.syncMuteOnly(initialVolume)
+      void embedViews.resetPageGainToFull()
+    } else {
+      void embedViews.syncGainOnly(initialVolume)
+    }
+  })
+  startWindowsAppVolumeWatchdog(
+    () => getDesiredWindowsAppVolume(),
+    result => {
+      if (!result.supported || result.stdout === "skipped_unchanged") return
+      if ((result.touched ?? 0) > 0) {
+        embedViews.syncMuteOnly(result.percent)
+        void embedViews.resetPageGainToFull()
+      } else {
+        void embedViews.syncGainOnly(result.percent)
+      }
+    },
+  )
 
   const hotkeyOk = registerHotkey(settings.hotkey)
   if (!hotkeyOk) {

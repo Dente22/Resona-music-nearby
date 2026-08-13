@@ -85,8 +85,37 @@ describe("playDelegatedTrackInEmbed", () => {
     const startedUrl = await promise
 
     expect(startedUrl).toBe(trackUrl)
-    expect(embedLoadUrl).toHaveBeenNthCalledWith(2, "yandex", trackUrl)
+    expect(embedLoadUrl).toHaveBeenCalledTimes(1)
+    expect(embedLoadUrl).toHaveBeenCalledWith("yandex", trackUrl)
     expect(startScriptCalls(embedExecute.mock.calls.map(c => String(c[1])))).toHaveLength(1)
+  })
+
+  it("starts without reload when already on the same track page", async () => {
+    const trackUrl = "https://music.yandex.ru/album/1/track/56220214"
+    const embedLoadUrl = vi.fn().mockResolvedValue(true)
+    const embedExecute = vi.fn().mockImplementation(async (_provider, script: string) => {
+      const text = String(script)
+      if (text.includes("isTrackUrl") || text.includes("fromPathname") || text.includes("EMBED_TRACK")) {
+        return trackUrl
+      }
+      if (text.includes("location.href") || text.includes("pathname")) return trackUrl
+      if (text.includes("__VW_EMBED__.play")) return true
+      if (text.includes("__VW_EMBED__.isPlaying")) return true
+      return trackUrl
+    })
+    const embedGetUrl = vi.fn().mockResolvedValue(trackUrl)
+
+    const promise = playDelegatedTrackInEmbed(
+      "yandex",
+      { mode: "track", url: "https://music.yandex.ru/track/56220214" },
+      { embedLoadUrl, embedExecute, embedGetUrl },
+    )
+    await vi.runAllTimersAsync()
+    const startedUrl = await promise
+
+    expect(startedUrl).toBe(trackUrl)
+    expect(embedLoadUrl).not.toHaveBeenCalled()
+    expect(startScriptCalls(embedExecute.mock.calls.map(c => String(c[1]))).length).toBeGreaterThan(0)
   })
 
   it("retries find then opens search result when href is missing at first", async () => {

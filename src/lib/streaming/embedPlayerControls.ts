@@ -1,5 +1,5 @@
 /** Shared runtime injected into Spotify/Yandex webview (dom-ready + before each control call). */
-export const EMBED_CONTROLS_VERSION = 13
+export const EMBED_CONTROLS_VERSION = 14
 
 export const EMBED_CONTROLS_BOOTSTRAP = `(function() {
   if (!window.__VW_VOL_HOOK__) {
@@ -536,7 +536,8 @@ export const EMBED_CONTROLS_BOOTSTRAP = `(function() {
       level = window.__VW_EMBED__.__desiredVolume;
     }
     if (level == null || !isFinite(level)) return false;
-    return setNativeVolume(level) || setVolumeUi(level);
+    // Never call setVolumeUi here — play/seek hooks were wiping Yandex/Spotify now-playing.
+    return setNativeVolume(level);
   }
   function setNativeVolume(level) {
     level = Math.max(0, Math.min(1, level));
@@ -598,6 +599,14 @@ export const EMBED_CONTROLS_BOOTSTRAP = `(function() {
     }
     return false;
   }
+  function setVolumeGainOnly(pct) {
+    pct = Math.max(0, Math.min(100, Math.round(Number(pct) || 0)));
+    var level = pct / 100;
+    window.__VW_EMBED_DESIRED_VOLUME__ = level;
+    if (window.__VW_EMBED__) window.__VW_EMBED__.__desiredVolume = level;
+    // Media + AudioContext gain only — never touch Spotify/Yandex volume DOM.
+    return setNativeVolume(level) || true;
+  }
   function setVolume(pct) {
     pct = Math.max(0, Math.min(100, Math.round(Number(pct) || 0)));
     var level = pct / 100;
@@ -615,6 +624,7 @@ export const EMBED_CONTROLS_BOOTSTRAP = `(function() {
     isPlaying: isPlaying,
     readProgress: readProgress,
     setVolume: setVolume,
+    setVolumeGainOnly: setVolumeGainOnly,
     applyDesiredVolume: applyDesiredVolume,
     __desiredVolume: typeof window.__VW_EMBED_DESIRED_VOLUME__ === "number" ? window.__VW_EMBED_DESIRED_VOLUME__ : 0.72,
     play: function() {
@@ -731,6 +741,16 @@ export function buildEmbedVolumeScript(percent: number): string {
   const pct = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)))
   return withEmbedBootstrap(`(function() {
     return window.__VW_EMBED__ ? window.__VW_EMBED__.setVolume(${pct}) : false;
+  })()`)
+}
+
+/** Media/AudioContext gain only — safe while Windows mixer owns (or will own) OS level. */
+export function buildEmbedGainOnlyVolumeScript(percent: number): string {
+  const pct = Math.max(0, Math.min(100, Math.round(Number(percent) || 0)))
+  return withEmbedBootstrap(`(function() {
+    return window.__VW_EMBED__ && window.__VW_EMBED__.setVolumeGainOnly
+      ? window.__VW_EMBED__.setVolumeGainOnly(${pct})
+      : false;
   })()`)
 }
 
