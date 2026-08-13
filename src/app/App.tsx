@@ -55,13 +55,37 @@ function PlayerShell({ app }: { app: PlayerApp }) {
   const onDuration = useCallback(() => {}, [])
   const onPlayError = useCallback(() => pauseOnErrorRef.current(), [])
 
-  const [useSystemVolumeMixer, setUseSystemVolumeMixer] = useState(false)
+  const [useSystemVolumeMixer, setUseSystemVolumeMixer] = useState(() => {
+    // Optimistic on Windows Electron: avoid one frame of page-volume injection
+    // that breaks Spotify/Yandex now-playing before systemVolumeSupported resolves.
+    if (typeof window === "undefined") return false
+    const ua = navigator.userAgent || ""
+    return /Windows/i.test(ua) && Boolean(window.musicPlayer?.systemVolumeSupported)
+  })
+  const [mixerProbeDone, setMixerProbeDone] = useState(false)
 
   useEffect(() => {
-    void getMusicPlayerApi()
-      .systemVolumeSupported?.()
-      .then(r => setUseSystemVolumeMixer(Boolean(r?.supported)))
-      .catch(() => setUseSystemVolumeMixer(false))
+    let cancelled = false
+    const probe = getMusicPlayerApi().systemVolumeSupported?.()
+    if (!probe) {
+      setUseSystemVolumeMixer(false)
+      setMixerProbeDone(true)
+      return
+    }
+    void probe
+      .then(r => {
+        if (cancelled) return
+        setUseSystemVolumeMixer(Boolean(r?.supported))
+      })
+      .catch(() => {
+        if (!cancelled) setUseSystemVolumeMixer(false)
+      })
+      .finally(() => {
+        if (!cancelled) setMixerProbeDone(true)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   const audio = useAudioPlayer({
@@ -179,6 +203,8 @@ function PlayerShell({ app }: { app: PlayerApp }) {
   const internetEmbedProps = {
     panelVisible: app.panelVisible,
     volume: app.settings.volume,
+    // Until probe finishes, treat as mixer-on on Windows so we never inject setVolumeUi.
+    useSystemVolumeMixer: useSystemVolumeMixer || !mixerProbeDone,
     controlProvider: app.embedControlProvider,
     playbackProvider: app.embedPlaybackProvider,
     keepWebviewsAlive: app.keepEmbedWebviewsAlive,

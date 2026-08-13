@@ -78,10 +78,18 @@ export const EMBED_NOW_PLAYING_SCRIPT = `(function() {
       || document.querySelector('section[class*="PlayerBarDesktopWithBackgroundProgressBar_root"]')
       || document.querySelector('section[class*="PlayerBar_root"]')
       || document.querySelector('section[class*="VibePlayerBar_root"]')
+      || document.querySelector('[class*="PlayerBarDesktop"]')
+      || document.querySelector('[class*="PlayerBarMobile"]')
+      || document.querySelector('[class*="CommonPlayerBar"]')
       || document.querySelector('[class*="PlayerBar"]');
     if (!root) {
       var playBtn = document.querySelector('button[aria-label*="Пауз"], button[aria-label*="Pause"], button[aria-label*="Воспро"], button[aria-label*="Playback"]');
-      if (playBtn) root = playBtn.closest("section, footer, nav") || playBtn.parentElement;
+      if (playBtn) root = playBtn.closest("section, footer, nav, div[class*='Player'], div[class*='player']") || playBtn.parentElement;
+    }
+    // Bottom mini-player: track title link near cover art (Yandex Music mobile web).
+    if (!root) {
+      var trackLink = document.querySelector('a[href*="/track/"]');
+      if (trackLink) root = trackLink.closest("section, footer, nav, div[class*='Player'], div[class*='Bar'], div[class*='bar']") || trackLink.parentElement;
     }
     if (!root) return null;
     var title = "";
@@ -93,7 +101,8 @@ export const EMBED_NOW_PLAYING_SCRIPT = `(function() {
       || root.querySelector('[class*="meta__title"]')
       || root.querySelector('[class*="TrackName"]')
       || root.querySelector('[class*="SonataMeta"] a')
-      || root.querySelector('[class*="Meta"] a');
+      || root.querySelector('[class*="Meta"] a')
+      || root.querySelector('[class*="title"]');
     if (titleEl) title = (titleEl.textContent || "").trim();
     var artistEl = root.querySelector('[class*="Meta_artists"]')
       || root.querySelector('[class*="Track_artists"]')
@@ -174,6 +183,10 @@ export const EMBED_NOW_PLAYING_SCRIPT = `(function() {
     var label = btn.getAttribute("aria-label") || "";
     if (/pause|пауз/i.test(label)) isPlaying = true;
     else if (/play|воспро/i.test(label)) isPlaying = false;
+  } else {
+    // Yandex mobile often uses icon-only buttons without aria-label.
+    var pauseSvg = document.querySelector('button svg[class*="Pause"], button [class*="PauseIcon"], button use[href*="pause"]');
+    if (pauseSvg) isPlaying = true;
   }
 
   if (!duration || !progress) {

@@ -6,17 +6,21 @@ import { isEmbedDelegatedTrack } from "./streaming/embedDelegatedTrack.js"
 export function shouldDriveLocalAudioPlayer(state: {
   displayIsEmbed: boolean
   currentTrack: Track | null
+  /** @deprecated Ignored — displayIsEmbed is the source of truth (avoids poll killing library play). */
   embedBrowsingActive?: boolean
   embedIsPlaying?: boolean
 }): boolean {
   if (state.displayIsEmbed) return false
-  if (state.embedBrowsingActive) return false
   if (isEmbedDelegatedTrack(state.currentTrack)) return false
   const uri = state.currentTrack ? getPlaybackUri(state.currentTrack).trim() : ""
   return Boolean(uri)
 }
 
-/** Clear local queue playing flag when browser session owns audio. */
+/**
+ * Clear local queue playing flag when the UI has switched to live browser playback.
+ * Do NOT clear merely because embedBrowsingActive flipped — Yandex poll used to set that
+ * and immediately kill library tracks right after the user pressed play.
+ */
 export function shouldClearLocalPlayingForEmbed(state: {
   localIsPlaying: boolean
   currentTrack: Track | null
@@ -26,7 +30,5 @@ export function shouldClearLocalPlayingForEmbed(state: {
 }): boolean {
   if (!state.localIsPlaying) return false
   if (isEmbedDelegatedTrack(state.currentTrack)) return false
-  if (state.displayIsEmbed) return true
-  if (state.embedBrowsingActive) return true
-  return false
+  return state.displayIsEmbed
 }

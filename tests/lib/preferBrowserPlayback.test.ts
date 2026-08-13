@@ -60,11 +60,11 @@ describe("preferBrowserPlayback", () => {
     ).toBe(true)
   })
 
-  it("keeps paused local when embed is stale background noise", () => {
+  it("prefers live browser over paused local without an explicit browsing flag", () => {
     const pb = selectTrack(createInitialPlayback(), "local-1", false)
     expect(
       preferBrowserPlayback(embed, pb, local, false, false),
-    ).toBe(false)
+    ).toBe(true)
   })
 
   it("prefers live browser over stale local isPlaying after internet session", () => {
@@ -78,6 +78,14 @@ describe("preferBrowserPlayback", () => {
     const pb = selectTrack(createInitialPlayback(), "local-1", true)
     expect(
       preferBrowserPlayback(embed, pb, local, false, false),
+    ).toBe(false)
+  })
+
+  it("keeps paused local when embed is also paused (no live browser audio)", () => {
+    const pb = selectTrack(createInitialPlayback(), "local-1", false)
+    const pausedEmbed = { ...embed, isPlaying: false }
+    expect(
+      preferBrowserPlayback(pausedEmbed, pb, local, false, false),
     ).toBe(false)
   })
 
@@ -127,6 +135,34 @@ describe("preferBrowserPlayback", () => {
     }
     expect(
       preferBrowserPlayback(matchedEmbed, pb, delegated, true, false, "yandex", true),
+    ).toBe(true)
+  })
+
+  it("keeps library pin preferred while Yandex DOM lags behind play()", () => {
+    const delegated: Track = {
+      id: "y1",
+      title: "Queued Song",
+      artist: "Artist A",
+      album: "",
+      duration: 200,
+      downloaded: false,
+      img: "",
+      filePath: "",
+      pageUrl: "https://music.yandex.kz/album/1/track/56220214",
+      externalId: "56220214",
+      source: "yandex",
+      addedAt: 1,
+    }
+    const pb = selectTrack(createInitialPlayback(), "y1", true)
+    const laggingEmbed = {
+      ...embed,
+      title: "Queued Song",
+      artist: "Artist A",
+      pageUrl: delegated.pageUrl,
+      isPlaying: false,
+    }
+    expect(
+      preferBrowserPlayback(laggingEmbed, pb, delegated, false, false, "yandex", true),
     ).toBe(true)
   })
 

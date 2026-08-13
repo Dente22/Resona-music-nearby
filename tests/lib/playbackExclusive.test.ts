@@ -49,20 +49,20 @@ describe("shouldDriveLocalAudioPlayer", () => {
     ).toBe(false)
   })
 
-  it("stops local audio while internet browsing embed session is active", () => {
+  it("still drives local audio if browsing flag is stale after library play", () => {
     expect(
       shouldDriveLocalAudioPlayer({
         displayIsEmbed: false,
         currentTrack: local,
         embedBrowsingActive: true,
-        embedIsPlaying: false,
+        embedIsPlaying: true,
       }),
-    ).toBe(false)
+    ).toBe(true)
   })
 })
 
 describe("shouldClearLocalPlayingForEmbed", () => {
-  it("clears stale local playing when embed browsing is live", () => {
+  it("does not clear library play just because Yandex poll flipped browsing", () => {
     expect(
       shouldClearLocalPlayingForEmbed({
         localIsPlaying: true,
@@ -71,17 +71,17 @@ describe("shouldClearLocalPlayingForEmbed", () => {
         embedBrowsingActive: true,
         embedIsPlaying: true,
       }),
-    ).toBe(true)
+    ).toBe(false)
   })
 
-  it("clears local playing while browsing session is paused", () => {
+  it("clears local playing when UI follows live embed", () => {
     expect(
       shouldClearLocalPlayingForEmbed({
         localIsPlaying: true,
         currentTrack: local,
         displayIsEmbed: true,
         embedBrowsingActive: true,
-        embedIsPlaying: false,
+        embedIsPlaying: true,
       }),
     ).toBe(true)
   })

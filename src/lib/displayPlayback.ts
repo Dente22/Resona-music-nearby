@@ -42,7 +42,9 @@ export function preferBrowserPlayback(
     && playback.currentTrackId === currentTrack.id
   ) {
     if (!embedMatchesQueuedLibraryTrack(currentTrack, embed)) return false
-    return embed.isPlaying
+    // Library drive owns the session: keep the card on this track even while Yandex
+    // DOM still reports paused for a moment after play().
+    return playback.isPlaying || embed.isPlaying
   }
 
   if (internetTabVisible) return true
@@ -52,17 +54,21 @@ export function preferBrowserPlayback(
 
   if (!embed.isPlaying) return false
 
+  // Actively playing local file wins over browser audio.
   if (playback.isPlaying && currentTrack && !isEmbedDelegatedTrack(currentTrack)) {
     return false
   }
 
   if (currentTrack && isEmbedDelegatedTrack(currentTrack)) {
-    return embedMatchesQueuedLibraryTrack(currentTrack, embed)
+    if (embedMatchesQueuedLibraryTrack(currentTrack, embed)) return true
+    // Driving a specific library stream — ignore unrelated My Wave / radio audio.
+    if (pinnedLibraryPlayback || embedControlProvider) return false
+    // Otherwise the live browser queue is what the user hears.
+    return true
   }
 
-  if (embedControlProvider) return true
-
-  return false
+  // Live browser audio with paused/idle local selection — always show the browser track.
+  return true
 }
 
 function resolveDelegatedDisplayPlaying(
@@ -70,10 +76,18 @@ function resolveDelegatedDisplayPlaying(
   embed: EmbedNowPlaying,
   pinnedLibraryPlayback: boolean,
 ): boolean {
-  if (pinnedLibraryPlayback && playback.isPlaying) {
-    return playback.isPlaying || embed.isPlaying
+  if (pinnedLibraryPlayback) {
+    return Boolean(playback.isPlaying || embed.isPlaying)
   }
   return embed.isPlaying
+}
+
+function resolveEmbedTransport(
+  internetTabVisible: boolean,
+  embedBrowsingActive: boolean,
+  pinnedLibraryPlayback: boolean,
+): boolean {
+  return internetTabVisible || embedBrowsingActive || pinnedLibraryPlayback
 }
 
 export function pickDisplayPlayback(
@@ -111,8 +125,12 @@ export function pickDisplayPlayback(
         isPlaying: resolveDelegatedDisplayPlaying(playback, embed!, pinnedLibraryPlayback),
         progress: embed!.progress,
         isEmbed: true,
-        // While browsing My Wave / Internet, skip must hit the browser — not the library queue.
-        useEmbedTransport: internetTabVisible || embedBrowsingActive,
+        // Library-driven play must keep embed transport (play/skip), not only Internet tab.
+        useEmbedTransport: resolveEmbedTransport(
+          internetTabVisible,
+          embedBrowsingActive,
+          pinnedLibraryPlayback,
+        ),
       }
     }
     return {
@@ -134,7 +152,11 @@ export function pickDisplayPlayback(
         isPlaying: resolveDelegatedDisplayPlaying(playback, embed!, pinnedLibraryPlayback),
         progress: embed!.progress,
         isEmbed: true,
-        useEmbedTransport: internetTabVisible || embedBrowsingActive,
+        useEmbedTransport: resolveEmbedTransport(
+          internetTabVisible,
+          embedBrowsingActive,
+          pinnedLibraryPlayback,
+        ),
       }
     }
     if (embedHasTrack && embedBrowsingActive) {
@@ -151,14 +173,27 @@ export function pickDisplayPlayback(
       isPlaying: playback.isPlaying,
       progress: 0,
       isEmbed: true,
-      // On Internet / live browse, skip must still hit the browser even while the library
-      // track is waiting for the embed title to sync.
-      useEmbedTransport: internetTabVisible || embedBrowsingActive,
+      // On Internet / live browse / library drive, skip must still hit the browser.
+      useEmbedTransport: resolveEmbedTransport(
+        internetTabVisible,
+        embedBrowsingActive,
+        pinnedLibraryPlayback,
+      ),
     }
   }
 
-  /** Selected local/streaming track — keep showing it when paused (don't fall back to stale embed). */
+  /** Selected local track only when embed is not the live source. */
   if (playback.currentTrackId && currentTrack && !isEmbedDelegatedTrack(currentTrack)) {
+    // Live browser audio must win over a paused library selection (Internet / My Wave).
+    if (embedHasTrack && embed!.isPlaying && !playback.isPlaying) {
+      return {
+        track: embedNowPlayingToTrack(embed!, placeholderImg) as Track,
+        isPlaying: true,
+        progress: embed!.progress,
+        isEmbed: true,
+        useEmbedTransport: true,
+      }
+    }
     return {
       track: currentTrack,
       isPlaying: playback.isPlaying,
