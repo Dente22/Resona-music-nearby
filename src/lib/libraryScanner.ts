@@ -48,8 +48,9 @@ export function getDefaultMusicPaths(platform: Platform, homeDir: string): strin
 
   return [
     ...common,
+    join(homeDir, "Музыка"),
     join(homeDir, ".local", "share", "music"),
-    "/mnt/c/Users/Public/Music",
+    "/run/media/diskus/7EDC3BF9DC3BA9F3/музыка",
   ]
 }
 

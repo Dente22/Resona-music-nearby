@@ -3,7 +3,7 @@
   "description": "Resona — offline music player with slide-in panel",
   "author": "Resona",
   "private": true,
-  "version": "1.2.6",
+  "version": "1.2.7",
   "type": "module",
   "main": "dist-electron/electron/main.js",
   "scripts": {
@@ -13,6 +13,7 @@
     "free:port": "node scripts/free-vite-port.mjs",
     "electron:dev": "npm run free:port && npm run icons && npm run win-volume && npm run electron:compile && concurrently -k \"vite\" \"wait-on http://localhost:5173 && electron . --disable-http-cache\"",
     "electron:build": "npm run icons && npm run win-volume && node scripts/generate-installer-assets.mjs && npm run build && electron-builder --config electron-builder.json",
+    "electron:build:linux": "npm run icons && npm run win-volume && npm run build && electron-builder --config electron-builder.json --linux AppImage dir",
     "icons": "node scripts/generate-icons.mjs && node scripts/brand-electron.mjs",
     "win-volume": "node scripts/build-win-app-volume.mjs",
     "brand:electron": "node scripts/brand-electron.mjs",

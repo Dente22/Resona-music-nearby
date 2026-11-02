@@ -99,6 +99,14 @@ const browserApi = {
     return true
   },
   onPanelVisibility: (_cb: (visible: boolean) => void) => () => {},
+  loadCatalogs: async () => ({
+    library: readLocal(STORAGE_KEYS.library, { tracks: [] as Track[] }),
+    playlists: readLocal(STORAGE_KEYS.playlists, { playlists: [] as Playlist[] }),
+    streaming: { tracks: [] as Track[] },
+    sync: { state: "local" as const },
+  }),
+  pushCatalogs: async () => ({ ok: true, sync: { state: "local" as const } }),
+  onSyncStatus: () => () => {},
   embedLayout: async () => true,
   embedExecute: async () => null,
   embedSetVolume: async () => false,

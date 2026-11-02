@@ -28,6 +28,14 @@ const api = {
   deleteTrackFile: (filePath: string) => ipcRenderer.invoke("tracks:delete-file", filePath),
   hidePanel: () => ipcRenderer.invoke("panel:hide"),
   resolveAudioPath: (filePath: string) => ipcRenderer.invoke("audio:resolve-path", filePath) as Promise<string>,
+  saveEmbedPlayback: (info: unknown) => ipcRenderer.invoke("embed:playback:save", info),
+  loadCatalogs: () => ipcRenderer.invoke("catalogs:load"),
+  pushCatalogs: (payload: unknown) => ipcRenderer.invoke("catalogs:push", payload),
+  onSyncStatus: (cb: (status: { state: string; phase?: string }) => void) => {
+    const handler = (_: unknown, status: { state: string; phase?: string }) => cb(status)
+    ipcRenderer.on("sync:status", handler)
+    return () => ipcRenderer.removeListener("sync:status", handler)
+  },
   onPanelVisibility: (cb: (visible: boolean) => void) => {
     const handler = (_: unknown, visible: boolean) => cb(visible)
     ipcRenderer.on("panel:visibility", handler)

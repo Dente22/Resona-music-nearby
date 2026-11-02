@@ -236,6 +236,34 @@ function PlayerShell({ app }: { app: PlayerApp }) {
 
       <div className="flex-1 overflow-hidden flex flex-col relative no-drag">
         <div className="vw-wave" aria-hidden />
+        {app.sync.state !== "local" && (
+          <div
+            className="relative z-20 flex items-center justify-between gap-3 px-4 py-1.5 shrink-0"
+            style={{
+              color: app.sync.state === "offline" ? VW.danger : app.sync.state === "saved" ? VW.online : VW.muted,
+              fontSize: 12,
+              fontWeight: 600,
+            }}
+          >
+            <span>
+              {app.sync.state === "saved"
+                ? t.settings.syncSaved
+                : app.sync.state === "syncing"
+                  ? t.settings.syncSyncing
+                  : t.settings.syncOffline}
+            </span>
+            {app.sync.state === "offline" && (
+              <button
+                type="button"
+                onClick={() => void app.retrySync()}
+                className="px-2 py-1 rounded-lg"
+                style={{ border: `1px solid ${VW.border}`, color: VW.ink }}
+              >
+                {t.settings.syncRetry}
+              </button>
+            )}
+          </div>
+        )}
 
         <div
           className={

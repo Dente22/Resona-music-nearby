@@ -19,21 +19,37 @@
   ],
   "extraResources": [
     {
-      "from": "build/icon.ico",
-      "to": "icons/icon.ico"
-    },
-    {
       "from": "build/icon.png",
       "to": "icons/icon.png"
-    },
-    {
-      "from": "electron/bin/win-app-volume.exe",
-      "to": "bin/win-app-volume.exe"
     }
   ],
-  "icon": "build/icon.ico",
-  "artifactName": "Resona-Setup-${version}.${ext}",
+  "icon": "build/icon.png",
+  "artifactName": "${productName}-${version}-${os}.${ext}",
   "afterPack": "./scripts/afterPack.mjs",
+  "linux": {
+    "target": [
+      {
+        "target": "AppImage",
+        "arch": ["x64"]
+      },
+      {
+        "target": "dir",
+        "arch": ["x64"]
+      }
+    ],
+    "category": "AudioVideo",
+    "icon": "build/icon.png",
+    "executableName": "resona",
+    "synopsis": "Resona — музыка рядом",
+    "desktop": {
+      "entry": {
+        "Name": "Resona",
+        "Comment": "Музыка рядом — панель с края экрана",
+        "Categories": "AudioVideo;Audio;Player;",
+        "StartupWMClass": "resona"
+      }
+    }
+  },
   "win": {
     "target": [
       {
@@ -43,7 +59,17 @@
     ],
     "signAndEditExecutable": false,
     "icon": "build/icon.ico",
-    "executableName": "Resona"
+    "executableName": "Resona",
+    "extraResources": [
+      {
+        "from": "build/icon.ico",
+        "to": "icons/icon.ico"
+      },
+      {
+        "from": "electron/bin/win-app-volume.exe",
+        "to": "bin/win-app-volume.exe"
+      }
+    ]
   },
   "nsis": {
     "oneClick": false,

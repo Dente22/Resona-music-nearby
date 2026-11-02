@@ -110,6 +110,13 @@ export interface MusicPlayerApi {
     info: import("./streaming/embedNowPlaying").EmbedNowPlaying | null,
   ) => Promise<boolean>
   onPanelVisibility: (cb: (visible: boolean) => void) => () => void
+  loadCatalogs: () => Promise<import("@/lib/resonaHub").CatalogBundle>
+  pushCatalogs: (payload: {
+    library: { tracks: unknown[] }
+    playlists: { playlists: unknown[] }
+    streaming: { tracks: unknown[] }
+  }) => Promise<{ ok: boolean; sync: import("@/lib/resonaHub").HubSyncStatus }>
+  onSyncStatus: (cb: (status: import("@/lib/resonaHub").HubSyncStatus) => void) => () => void
   embedLayout: (request: {
     visible: boolean
     provider?: "spotify" | "yandex"

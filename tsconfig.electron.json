@@ -23,6 +23,7 @@
     "src/lib/filenameParser.ts",
     "src/lib/moodAnalyzer.ts",
     "src/lib/audioUrl.ts",
+    "src/lib/resonaHub.ts",
     "src/lib/trackImport.ts",
     "src/lib/streaming/**/*.ts",
     "src/lib/types.ts"

@@ -1,10 +1,16 @@
 /**
  * Compile Windows Volume Mixer helper (WASAPI) with .NET Framework csc.
  * Output: electron/bin/win-app-volume.exe
+ * On non-Windows hosts this is a no-op (Linux/macOS builds).
  */
 import fs from "fs"
 import path from "path"
 import { spawnSync } from "child_process"
+
+if (process.platform !== "win32") {
+  console.log("win-app-volume: skip (not Windows)")
+  process.exit(0)
+}
 
 const root = process.cwd()
 const src = path.join(root, "native", "win-app-volume", "Program.cs")

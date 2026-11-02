@@ -22,6 +22,13 @@ export function Settings({ settings, onChange, onClose }: SettingsProps) {
   const { t } = useI18n()
   const hotkeyValid = validateHotkey(settings.hotkey)
   const [musicDir, setMusicDir] = useState("")
+  const [hubUrl, setHubUrl] = useState(settings.hubUrl ?? "")
+  const [hubToken, setHubToken] = useState(settings.hubToken ?? "")
+
+  useEffect(() => {
+    setHubUrl(settings.hubUrl ?? "")
+    setHubToken(settings.hubToken ?? "")
+  }, [settings.hubUrl, settings.hubToken])
 
   useEffect(() => {
     void window.musicPlayer?.getMusicLibraryDir?.().then(dir => setMusicDir(dir ?? ""))
@@ -263,6 +270,48 @@ export function Settings({ settings, onChange, onClose }: SettingsProps) {
               {t.settings.libraryReset}
             </button>
           </div>
+        </section>
+
+        <section
+          className="rounded-2xl p-4 space-y-3"
+          style={{ background: VW.surface, border: `1px solid ${BORDER}` }}
+        >
+          <div>
+            <p style={{ color: TEXT, fontSize: "14px", fontWeight: 600 }}>{t.settings.hubTitle}</p>
+            <p style={{ color: SUBTEXT, fontSize: "12px", marginTop: 4 }}>{t.settings.hubHint}</p>
+          </div>
+          <label className="block">
+            <span style={{ color: SUBTEXT, fontSize: "12px" }}>{t.settings.hubUrl}</span>
+            <input
+              value={hubUrl}
+              placeholder={t.settings.hubUrlPlaceholder}
+              onChange={event => setHubUrl(event.target.value)}
+              onBlur={() => {
+                const next = hubUrl.trim()
+                if (next !== (settings.hubUrl ?? "")) onChange({ hubUrl: next })
+              }}
+              className="w-full mt-1 px-3 py-2 rounded-xl"
+              style={{ background: VW.bg, color: TEXT, border: `1px solid ${BORDER}`, fontSize: "13px" }}
+              data-testid="settings-hub-url"
+              spellCheck={false}
+            />
+          </label>
+          <label className="block">
+            <span style={{ color: SUBTEXT, fontSize: "12px" }}>{t.settings.hubToken}</span>
+            <input
+              type="password"
+              value={hubToken}
+              onChange={event => setHubToken(event.target.value)}
+              onBlur={() => {
+                if (hubToken !== (settings.hubToken ?? "")) onChange({ hubToken })
+              }}
+              className="w-full mt-1 px-3 py-2 rounded-xl"
+              style={{ background: VW.bg, color: TEXT, border: `1px solid ${BORDER}`, fontSize: "13px" }}
+              data-testid="settings-hub-token"
+              autoComplete="off"
+            />
+            <p style={{ color: SUBTEXT, fontSize: "12px", marginTop: 6 }}>{t.settings.hubTokenHint}</p>
+          </label>
         </section>
 
         <section

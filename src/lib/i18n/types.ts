@@ -106,6 +106,16 @@ export interface Translations {
     libraryReset: string
     startMinimized: string
     startMinimizedHint: string
+    hubTitle: string
+    hubHint: string
+    hubUrl: string
+    hubUrlPlaceholder: string
+    hubToken: string
+    hubTokenHint: string
+    syncSaved: string
+    syncSyncing: string
+    syncOffline: string
+    syncRetry: string
   }
   nowPlaying: {
     offline: string

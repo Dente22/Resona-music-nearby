@@ -43,6 +43,13 @@ const api = {
   },
   loadEmbedPlayback: () => ipcRenderer.invoke("embed:playback:load"),
   saveEmbedPlayback: (info) => ipcRenderer.invoke("embed:playback:save", info),
+  loadCatalogs: () => ipcRenderer.invoke("catalogs:load"),
+  pushCatalogs: (payload) => ipcRenderer.invoke("catalogs:push", payload),
+  onSyncStatus: (cb) => {
+    const handler = (_event, status) => cb(status)
+    ipcRenderer.on("sync:status", handler)
+    return () => ipcRenderer.removeListener("sync:status", handler)
+  },
   onPanelVisibility: (cb) => {
     const handler = (_event, visible) => cb(visible)
     ipcRenderer.on("panel:visibility", handler)

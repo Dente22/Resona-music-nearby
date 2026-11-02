@@ -48,6 +48,10 @@ export interface AppSettings {
   theme: AppTheme
   /** Empty string = default folder under AppData */
   musicLibraryPath: string
+  /** Tailscale origin, e.g. https://server.tail.ts.net. Empty = catalogs stay on this PC. */
+  hubUrl: string
+  /** Needed only for a direct :8767 connection. Portal HTTPS injects the hub token. */
+  hubToken: string
 }
 
 export interface LibraryState {
@@ -84,6 +88,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   language: "ru",
   theme: "light",
   musicLibraryPath: "",
+  hubUrl: "",
+  hubToken: "",
 }
 
 export function createTrackFromFile(

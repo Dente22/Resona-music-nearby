@@ -11,6 +11,9 @@ import { refreshCoversForPaths } from "./coverArt.js"
 import { copyTrackIntoLibrary, ensureTrackStoredInLibrary } from "./trackImport.js"
 import { collectKnownSourcePaths } from "../src/lib/trackImport.js"
 import { toVioletwaveMediaUrl } from "../src/lib/audioUrl.js"
+import type { CatalogName, HubSyncStatus } from "../src/lib/resonaHub.js"
+import { emptyCatalog } from "../src/lib/resonaHub.js"
+import { isHubUrl, offline, pullCatalog, pushCatalog, shouldSeed } from "./resonaSync.js"
 import {
   resolveAppDataRoot,
   getAppDataFile,
@@ -37,13 +40,12 @@ import {
   type StreamingProvider,
 } from "./embedBrowserView.js"
 import {
-  setWindowsAppVolume,
-  startWindowsAppVolumeWatchdog,
-  stopWindowsAppVolumeWatchdog,
-  isWindowsAppVolumeSupported,
-  resolveWinAppVolumeExe,
-  getDesiredWindowsAppVolume,
-} from "./windowsAppVolume.js"
+  setSystemAppVolume,
+  startSystemAppVolumeWatchdog,
+  stopSystemAppVolumeWatchdog,
+  isSystemAppVolumeSupported,
+  getDesiredSystemAppVolume,
+} from "./systemAppVolume.js"
 import {
   parseStoredEmbedPlayback,
   serializeEmbedPlayback,
@@ -127,7 +129,12 @@ const SETTINGS_DEFAULTS = {
   autoScanFolders: true,
   language: "ru" as AppLocale,
   musicLibraryPath: "",
+  hubUrl: "",
+  hubToken: "",
 }
+
+let hubWritable = true
+let currentSync: HubSyncStatus = { state: "local" }
 
 function loadStoredSettings() {
   const stored = readJson(SETTINGS_FILE(), SETTINGS_DEFAULTS)
@@ -178,6 +185,118 @@ function readJson<T>(filePath: string, fallback: T): T {
 
 function writeJson(filePath: string, data: unknown) {
   fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8")
+}
+
+function emitSync(status: HubSyncStatus) {
+  currentSync = status
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("sync:status", status)
+  }
+}
+
+function hubLink(): { url: string; token: string } | null | "invalid" {
+  const settings = loadStoredSettings()
+  const url = String(settings.hubUrl ?? "").trim()
+  if (!url) return null
+  if (!isHubUrl(url)) return "invalid"
+  return { url, token: String(settings.hubToken ?? "") }
+}
+
+function catalogFile(name: CatalogName) {
+  if (name === "library") return LIBRARY_FILE()
+  if (name === "playlists") return PLAYLISTS_FILE()
+  return STREAMING_LIBRARY_FILE()
+}
+
+function migrateLibraryTracks(data: { tracks?: Array<Record<string, unknown>> }) {
+  const musicDir = MUSIC_DIR()
+  let changed = false
+  const tracks = (data.tracks ?? []).map(track => {
+    const filePath = String(track.filePath ?? "")
+    const originalPath = track.originalPath ? String(track.originalPath) : undefined
+    if (!filePath) return track
+    try {
+      const stored = ensureTrackStoredInLibrary(filePath, musicDir, originalPath)
+      if (stored.filePath !== filePath || stored.originalPath !== originalPath) {
+        changed = true
+        return { ...track, filePath: stored.filePath, originalPath: stored.originalPath }
+      }
+    } catch (err) {
+      log(`Library migrate failed: ${filePath} ${err}`)
+    }
+    return track
+  })
+  return { data: { ...data, tracks }, changed }
+}
+
+async function loadCatalog(name: CatalogName): Promise<{ data: unknown; sync: HubSyncStatus }> {
+  const fallback = emptyCatalog(name)
+  const link = hubLink()
+  if (link === "invalid") return { data: fallback, sync: offline("load") }
+  if (!link) {
+    let data: unknown = readJson(catalogFile(name), fallback)
+    if (name === "library") {
+      const migrated = migrateLibraryTracks(data as { tracks?: Array<Record<string, unknown>> })
+      if (migrated.changed) {
+        writeJson(catalogFile(name), migrated.data)
+        log("Library tracks migrated into app music folder")
+        data = migrated.data
+      }
+    }
+    return { data, sync: { state: "local" } }
+  }
+  try {
+    const remote = await pullCatalog(link, name)
+    let data = remote.data
+    if (shouldSeed(name, remote.exists, readJson(catalogFile(name), fallback))) {
+      const local = readJson(catalogFile(name), fallback)
+      await pushCatalog(link, name, local)
+      data = local
+    } else if (!remote.exists) {
+      data = fallback
+    }
+    if (name === "library") {
+      const migrated = migrateLibraryTracks(data as { tracks?: Array<Record<string, unknown>> })
+      if (migrated.changed) {
+        await pushCatalog(link, name, migrated.data)
+        data = migrated.data
+      }
+    }
+    return { data, sync: { state: "saved" } }
+  } catch (err) {
+    log(`Resona hub ${name} load failed: ${err}`)
+    return { data: fallback, sync: offline("load") }
+  }
+}
+
+async function saveCatalog(name: CatalogName, data: unknown) {
+  const link = hubLink()
+  if (link === "invalid") {
+    const sync = offline("load")
+    emitSync(sync)
+    return { ok: false, sync }
+  }
+  if (!link) {
+    writeJson(catalogFile(name), data)
+    return { ok: true, sync: { state: "local" as const } }
+  }
+  if (!hubWritable) {
+    const sync = offline("load")
+    emitSync(sync)
+    return { ok: false, sync }
+  }
+  emitSync({ state: "syncing" })
+  try {
+    await pushCatalog(link, name, data)
+    const sync: HubSyncStatus = { state: "saved" }
+    emitSync(sync)
+    return { ok: true, sync }
+  } catch (err) {
+    log(`Resona hub ${name} save failed: ${err}`)
+    const sync = offline("save")
+    emitSync(sync)
+    return { ok: false, sync }
+  }
 }
 
 function getIndexHtmlPath() {
@@ -424,47 +543,88 @@ function rebuildTrayMenu() {
 }
 
 function setupIpc() {
-  ipcMain.handle("library:load", () => {
-    const musicDir = MUSIC_DIR()
-    const lib = readJson<{ tracks: Array<Record<string, unknown>> }>(LIBRARY_FILE(), { tracks: [] })
-    let changed = false
-
-    const tracks = (lib.tracks ?? []).map(track => {
-      const filePath = String(track.filePath ?? "")
-      const originalPath = track.originalPath ? String(track.originalPath) : undefined
-      if (!filePath) return track
-
-      try {
-        const stored = ensureTrackStoredInLibrary(filePath, musicDir, originalPath)
-        if (stored.filePath !== filePath || stored.originalPath !== originalPath) {
-          changed = true
-          return { ...track, filePath: stored.filePath, originalPath: stored.originalPath }
-        }
-      } catch (err) {
-        log(`Library migrate failed: ${filePath} ${err}`)
+  ipcMain.handle("catalogs:load", async () => {
+    const link = hubLink()
+    if (link === "invalid") {
+      hubWritable = false
+      const sync = offline("load")
+      emitSync(sync)
+      return {
+        library: emptyCatalog("library"),
+        playlists: emptyCatalog("playlists"),
+        streaming: emptyCatalog("streaming"),
+        sync,
       }
-      return track
-    })
-
-    if (changed) {
-      writeJson(LIBRARY_FILE(), { tracks })
-      log("Library tracks migrated into app music folder")
     }
-
-    return { tracks }
+    emitSync(link ? { state: "syncing" } : { state: "local" })
+    const library = await loadCatalog("library")
+    const playlists = await loadCatalog("playlists")
+    const streaming = await loadCatalog("streaming")
+    const failed = [library, playlists, streaming].find(item => item.sync.state === "offline")
+    if (failed) {
+      hubWritable = false
+      emitSync(failed.sync)
+      return {
+        library: emptyCatalog("library"),
+        playlists: emptyCatalog("playlists"),
+        streaming: emptyCatalog("streaming"),
+        sync: failed.sync,
+      }
+    }
+    hubWritable = true
+    emitSync(library.sync)
+    return {
+      library: library.data,
+      playlists: playlists.data,
+      streaming: streaming.data,
+      sync: library.sync,
+    }
   })
 
-  ipcMain.handle("library:save", (_e, data) => {
-    writeJson(LIBRARY_FILE(), data)
-    return true
+  ipcMain.handle("catalogs:push", async (_e, payload: {
+    library?: unknown
+    playlists?: unknown
+    streaming?: unknown
+  }) => {
+    const link = hubLink()
+    if (link === "invalid") {
+      const sync = offline("load")
+      emitSync(sync)
+      return { ok: false, sync }
+    }
+    if (!link) return { ok: true, sync: { state: "local" as const } }
+    if (!hubWritable) {
+      const sync = offline("load")
+      emitSync(sync)
+      return { ok: false, sync }
+    }
+    const names: CatalogName[] = ["library", "playlists", "streaming"]
+    let last: HubSyncStatus = { state: "saved" }
+    for (const name of names) {
+      const result = await saveCatalog(name, payload?.[name])
+      if (!result.ok) return result
+      last = result.sync
+    }
+    return { ok: true, sync: last }
   })
 
-  ipcMain.handle("playlists:load", () => readJson(PLAYLISTS_FILE(), { playlists: [] }))
+  ipcMain.handle("sync:get", () => currentSync)
 
-  ipcMain.handle("playlists:save", (_e, data) => {
-    writeJson(PLAYLISTS_FILE(), data)
-    return true
+  ipcMain.handle("library:load", async () => {
+    const loaded = await loadCatalog("library")
+    const data = loaded.data as { tracks?: unknown[] }
+    return { tracks: data.tracks ?? [], sync: loaded.sync }
   })
+
+  ipcMain.handle("library:save", (_e, data) => saveCatalog("library", data))
+
+  ipcMain.handle("playlists:load", async () => {
+    const loaded = await loadCatalog("playlists")
+    const data = loaded.data as { playlists?: unknown[] }
+    return { playlists: data.playlists ?? [], sync: loaded.sync }
+  })
+
+  ipcMain.handle("playlists:save", (_e, data) => saveCatalog("playlists", data))
 
   ipcMain.handle("settings:load", () => loadStoredSettings())
 
@@ -497,10 +657,12 @@ function setupIpc() {
 
   ipcMain.handle("library:scan", async () => {
     const musicDir = MUSIC_DIR()
-    const lib = readJson<{ tracks: Array<{ filePath: string; originalPath?: string }> }>(
-      LIBRARY_FILE(),
-      { tracks: [] },
-    )
+    const loaded = await loadCatalog("library")
+    if (loaded.sync.state === "offline") {
+      emitSync(loaded.sync)
+      return []
+    }
+    const lib = loaded.data as { tracks?: Array<{ filePath: string; originalPath?: string }> }
     const knownPaths = collectKnownSourcePaths(lib.tracks ?? [])
     const { homeDir, platform } = getHomeAndPlatform()
     const found = scanMusicFolders(homeDir, platform, knownPaths)
@@ -589,14 +751,13 @@ function setupIpc() {
     clearEmbedSession(provider),
   )
 
-  ipcMain.handle("streaming:library:load", () =>
-    readJson(STREAMING_LIBRARY_FILE(), { tracks: [] }),
-  )
-
-  ipcMain.handle("streaming:library:save", (_e, data) => {
-    writeJson(STREAMING_LIBRARY_FILE(), data)
-    return true
+  ipcMain.handle("streaming:library:load", async () => {
+    const loaded = await loadCatalog("streaming")
+    const data = loaded.data as { tracks?: unknown[] }
+    return { tracks: data.tracks ?? [], sync: loaded.sync }
   })
+
+  ipcMain.handle("streaming:library:save", (_e, data) => saveCatalog("streaming", data))
 
   ipcMain.handle("embed:playback:load", () => {
     const raw = readJson<unknown>(EMBED_PLAYBACK_FILE(), null)
@@ -629,12 +790,11 @@ function setupIpc() {
   )
 
   ipcMain.handle("embed:set-volume", async (_e, percent: number) => {
-    const mixerReady =
-      isWindowsAppVolumeSupported() && Boolean(resolveWinAppVolumeExe())
+    const mixerReady = isSystemAppVolumeSupported()
 
     if (mixerReady) {
-      // Mixer owns gain via volume:set-system. Here only sync mute — do not
-      // re-enter WASAPI (duplicate writes were thrashing mixer now-playing UI).
+      // OS mixer owns gain via volume:set-system. Here only sync mute — do not
+      // double-apply page gain (would thrash now-playing UI / multiply levels).
       const result = embedViews.syncMuteOnly(percent)
       log(`Volume ${percent}% → muteOnly targets=${result.targets}`)
       return { ...result, mode: "mixer" as const }
@@ -646,7 +806,7 @@ function setupIpc() {
   })
 
   ipcMain.handle("volume:set-system", async (_e, percent: number) => {
-    const result = await setWindowsAppVolume(percent, { force: true })
+    const result = await setSystemAppVolume(percent, { force: true })
     if (!result.supported) return result
 
     const touched = result.touched ?? 0
@@ -655,15 +815,14 @@ function setupIpc() {
       embedViews.syncMuteOnly(percent)
       void embedViews.resetPageGainToFull()
     } else {
-      // No WASAPI session yet (common until audio actually starts) — gain-only
-      // fallback without setVolumeUi so the card/now-playing stays intact.
+      // No sink-input / WASAPI session yet — gain-only fallback until audio starts.
       await embedViews.syncGainOnly(percent)
     }
     return result
   })
 
   ipcMain.handle("volume:system-supported", () => ({
-    supported: isWindowsAppVolumeSupported() && Boolean(resolveWinAppVolumeExe()),
+    supported: isSystemAppVolumeSupported(),
   }))
 
   ipcMain.handle("embed:get-url", (_e, provider: StreamingProvider) =>
@@ -800,9 +959,13 @@ app.whenReady().then(async () => {
     startMinimized: false,
     volume: 72,
   })
+  // Linux/systemd installs: stay in tray until hotkey (low idle UI work).
+  if (process.env.RESONA_START_MINIMIZED === "1") {
+    settings.startMinimized = true
+  }
 
   const initialVolume = typeof settings.volume === "number" ? settings.volume : 72
-  void setWindowsAppVolume(initialVolume, { force: true }).then(result => {
+  void setSystemAppVolume(initialVolume, { force: true }).then(result => {
     if (!result.supported) return
     if ((result.touched ?? 0) > 0) {
       embedViews.syncMuteOnly(initialVolume)
@@ -811,8 +974,8 @@ app.whenReady().then(async () => {
       void embedViews.syncGainOnly(initialVolume)
     }
   })
-  startWindowsAppVolumeWatchdog(
-    () => getDesiredWindowsAppVolume(),
+  startSystemAppVolumeWatchdog(
+    () => getDesiredSystemAppVolume(),
     result => {
       if (!result.supported || result.stdout === "skipped_unchanged") return
       if ((result.touched ?? 0) > 0) {
@@ -848,7 +1011,7 @@ app.on("before-quit", () => {
 })
 
 app.on("will-quit", () => {
-  stopWindowsAppVolumeWatchdog()
+  stopSystemAppVolumeWatchdog()
   globalShortcut.unregisterAll()
 })
 

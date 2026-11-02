@@ -71,7 +71,10 @@ describe("electron-builder icon packaging", () => {
     expect(config.nsis?.uninstallerIcon).toMatch(/icon\.ico$/)
     expect(config.nsis?.installerHeaderIcon).toMatch(/icon\.ico$/)
     expect(config.nsis?.shortcutName).toBe("Resona")
-    expect(config.extraResources?.some(r => r.from.includes("icon.ico"))).toBe(true)
+    // Win-only resources live under win.extraResources (Linux build must not ship .ico / .exe helpers).
+    const winExtras = (config.win as { extraResources?: Array<{ from: string }> } | undefined)?.extraResources
+    expect(winExtras?.some(r => r.from.includes("icon.ico"))).toBe(true)
+    expect(winExtras?.some(r => r.from.includes("win-app-volume.exe"))).toBe(true)
     expect(config.asarUnpack?.some(p => p.includes("icon."))).toBe(true)
     // winCodeSign needs symlink rights on Windows; icon is stamped via afterPack + rcedit
     expect(config.win?.signAndEditExecutable).toBe(false)

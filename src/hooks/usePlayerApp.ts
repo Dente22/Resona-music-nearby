@@ -88,6 +88,7 @@ import type { StreamingProvider, StreamingTrackInput } from "@/lib/streaming/typ
 import { EMBED_MOUNT_DELAY_MS } from "@/lib/streaming/embedPanelLifecycle"
 import { PLACEHOLDER_COVER } from "@/lib/designTokens"
 import { clampVolumePercent } from "@/lib/streaming/volumePercent"
+import type { CatalogBundle, HubSyncStatus } from "@/lib/resonaHub"
 
 export function usePlayerApp() {
   const api = getMusicPlayerApi()
@@ -100,6 +101,8 @@ export function usePlayerApp() {
   const settingsRef = useRef(settings)
   settingsRef.current = settings
   const [loaded, setLoaded] = useState(false)
+  const [sync, setSync] = useState<HubSyncStatus>({ state: "local" })
+  const hubBlockedRef = useRef(false)
   const [embedNowPlaying, setEmbedNowPlaying] = useState<EmbedNowPlaying | null>(null)
   const [embedControlProvider, setEmbedControlProvider] = useState<StreamingProvider | null>(null)
   const [embedBrowsingActive, setEmbedBrowsingActive] = useState(false)
@@ -209,41 +212,60 @@ export function usePlayerApp() {
     return false
   }, [currentTrack, display.isEmbed, display.track, embedNowPlaying, playlistsState, tracks])
 
-  useEffect(() => {
-    async function load() {
-      const [lib, streamLib, pl, st, storedEmbed] = await Promise.all([
-        api.loadLibrary(),
-        api.loadStreamingLibrary(),
-        api.loadPlaylists(),
-        api.loadSettings(),
-        api.loadEmbedPlayback(),
-      ])
-      setLibrary(lib.tracks?.length ? { tracks: lib.tracks as Track[] } : createEmptyLibrary())
-      setStreamingLibrary(
-        streamLib.tracks?.length
-          ? { tracks: streamLib.tracks as Track[] }
-          : { tracks: [] },
-      )
-      setPlaylistsState(
-        ensureLikesPlaylist(
-          pl.playlists?.length
-            ? { playlists: pl.playlists as Playlist[] }
-            : createEmptyPlaylists(),
-          getLikesPlaylistName({ ...DEFAULT_SETTINGS, ...st }.language),
-        ),
-      )
-      setSettings({ ...DEFAULT_SETTINGS, ...st })
-      if (storedEmbed?.title?.trim()) {
-        setEmbedNowPlaying(storedEmbed)
-      }
-      if (lib.tracks?.length) {
-        setPlayback(prev =>
-          prev.currentTrackId ? prev : selectTrack(prev, (lib.tracks as Track[])[0].id),
-        )
-      }
+  const applyCatalogs = useCallback((bundled: CatalogBundle, st: Partial<AppSettings>) => {
+    if (bundled.sync.state === "offline") {
+      hubBlockedRef.current = true
+      setSync(bundled.sync)
+      setSettings(prev => ({ ...DEFAULT_SETTINGS, ...prev, ...st }))
       setLoaded(true)
+      return
     }
-    load()
+    hubBlockedRef.current = false
+    setSync(bundled.sync)
+    setLibrary(bundled.library.tracks?.length ? { tracks: bundled.library.tracks as Track[] } : createEmptyLibrary())
+    setStreamingLibrary(
+      bundled.streaming.tracks?.length
+        ? { tracks: bundled.streaming.tracks as Track[] }
+        : { tracks: [] },
+    )
+    const language = { ...DEFAULT_SETTINGS, ...st }.language
+    setPlaylistsState(
+      ensureLikesPlaylist(
+        bundled.playlists.playlists?.length
+          ? { playlists: bundled.playlists.playlists as Playlist[] }
+          : createEmptyPlaylists(),
+        getLikesPlaylistName(language),
+      ),
+    )
+    setSettings({ ...DEFAULT_SETTINGS, ...st })
+    if (bundled.library.tracks?.length) {
+      setPlayback(prev =>
+        prev.currentTrackId ? prev : selectTrack(prev, (bundled.library.tracks as Track[])[0].id),
+      )
+    }
+    setLoaded(true)
+  }, [])
+
+  const reloadCatalogs = useCallback(async () => {
+    const [bundled, st, storedEmbed] = await Promise.all([
+      api.loadCatalogs(),
+      api.loadSettings(),
+      api.loadEmbedPlayback(),
+    ])
+    applyCatalogs(bundled, st)
+    if (storedEmbed?.title?.trim()) setEmbedNowPlaying(storedEmbed)
+  }, [api, applyCatalogs])
+
+  useEffect(() => {
+    void reloadCatalogs()
+  }, [reloadCatalogs])
+
+  useEffect(() => {
+    return api.onSyncStatus(status => {
+      if (status.state === "offline" && status.phase === "load") hubBlockedRef.current = true
+      if (status.state === "saved" || status.state === "local") hubBlockedRef.current = false
+      setSync(status)
+    })
   }, [api])
 
   useEffect(() => {
@@ -312,19 +334,26 @@ export function usePlayerApp() {
     })
   }, [tracks, loaded])
 
+  function noteSyncResult(result: unknown) {
+    if (!result || typeof result !== "object" || !("sync" in result)) return
+    const status = (result as { sync: HubSyncStatus }).sync
+    if (!status?.state) return
+    setSync(status)
+  }
+
   useEffect(() => {
-    if (!loaded) return
-    api.saveLibrary(library)
+    if (!loaded || hubBlockedRef.current) return
+    void api.saveLibrary(library).then(noteSyncResult)
   }, [library, loaded, api])
 
   useEffect(() => {
-    if (!loaded) return
-    api.saveStreamingLibrary(streamingLibrary)
+    if (!loaded || hubBlockedRef.current) return
+    void api.saveStreamingLibrary(streamingLibrary).then(noteSyncResult)
   }, [streamingLibrary, loaded, api])
 
   useEffect(() => {
-    if (!loaded) return
-    api.savePlaylists(playlistsState)
+    if (!loaded || hubBlockedRef.current) return
+    void api.savePlaylists(playlistsState).then(noteSyncResult)
   }, [playlistsState, loaded, api])
 
   const saveSettings = useCallback(async (patch: Partial<AppSettings>) => {
@@ -337,7 +366,10 @@ export function usePlayerApp() {
       )
     }
     await api.saveSettings(next)
-  }, [api])
+    if (patch.hubUrl !== undefined || patch.hubToken !== undefined) {
+      await reloadCatalogs()
+    }
+  }, [api, reloadCatalogs])
 
   const setVolume = useCallback(
     (v: number) => {
@@ -1170,8 +1202,23 @@ export function usePlayerApp() {
     tracks,
   ])
 
+  const retrySync = useCallback(async () => {
+    if (sync.phase === "save") {
+      const result = await api.pushCatalogs({
+        library,
+        playlists: playlistsState,
+        streaming: streamingLibrary,
+      })
+      setSync(result.sync)
+      return
+    }
+    await reloadCatalogs()
+  }, [api, library, playlistsState, reloadCatalogs, streamingLibrary, sync.phase])
+
   return {
     loaded,
+    sync,
+    retrySync,
     screen,
     setScreen,
     tracks,
